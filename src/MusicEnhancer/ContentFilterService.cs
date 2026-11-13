@@ -12,8 +12,8 @@ namespace NzbDrone.Core.Plugins;
 public interface IContentFilterService
 {
     void FilterContentForArtist(Artist artist, Album importedAlbum);
-    FilterResult FilterWithOptions(Artist artist, Album importedAlbum, ContentFilterOptions options);
-    FilterResult ScanArtistWithOptions(Artist artist, ContentFilterOptions options);
+    FilterResult FilterWithOptions(Artist artist, Album importedAlbum, MusicEnhancerOptions options);
+    FilterResult ScanArtistWithOptions(Artist artist, MusicEnhancerOptions options);
 }
 
 public class ContentFilterService : IContentFilterService
@@ -146,7 +146,7 @@ public class ContentFilterService : IContentFilterService
         return result;
     }
 
-    private FilterResult CheckAndFilterAlbum(Artist artist, Album album, Album? comparisonAlbumContext, Dictionary<int, List<Track>> candidateTracks, ContentFilterOptions options)
+    private FilterResult CheckAndFilterAlbum(Artist artist, Album album, Album? comparisonAlbumContext, Dictionary<int, List<Track>> candidateTracks, MusicEnhancerOptions options)
     {
         var candidatesChecked = 1;
         var albumsUnmonitored = 0;
@@ -344,7 +344,7 @@ public class ContentFilterService : IContentFilterService
         return new FilterResult(candidatesChecked, albumsUnmonitored, tracksUnmonitored, reviewNeeded, unmonitorFailures, deleteFailures);
     }
 
-    private void LogVersionMatches(Artist artist, Album album, Album? comparisonAlbumContext, List<VersionMatchResult> versionResults, ContentFilterOptions options)
+    private void LogVersionMatches(Artist artist, Album album, Album? comparisonAlbumContext, List<VersionMatchResult> versionResults, MusicEnhancerOptions options)
     {
         var versionCount = versionResults.Count(r => r.VersionType != VersionType.None);
         var originalCount = versionResults.Count(r => r.VersionType == VersionType.None);
@@ -374,7 +374,7 @@ public class ContentFilterService : IContentFilterService
         }
     }
 
-    private Dictionary<int, List<Track>> GetCandidateTracks(List<Album> albums, ContentFilterOptions options)
+    private Dictionary<int, List<Track>> GetCandidateTracks(List<Album> albums, MusicEnhancerOptions options)
     {
         var tracks = new Dictionary<int, List<Track>>();
 
@@ -635,9 +635,9 @@ public class ContentFilterService : IContentFilterService
         }
     }
 
-    private static ContentFilterOptions CreateLegacyOptions()
+    private static MusicEnhancerOptions CreateLegacyOptions()
     {
-        return new ContentFilterOptions(
+        return new MusicEnhancerOptions(
             new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Album", "EP" },
             VersionFilterAction.FlagOnly,
             3000,

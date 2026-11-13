@@ -97,12 +97,12 @@ public class MusicEnhancerSettings : IProviderConfig
     public bool DeleteFilesAfterUnmonitor { get; set; }
 
     /// <summary>
-    /// Converts settings to a validated ContentFilterOptions snapshot.
+    /// Converts settings to a validated MusicEnhancerOptions snapshot.
     /// </summary>
-    public ContentFilterOptions ToFilterOptions()
+    public MusicEnhancerOptions ToFilterOptions()
     {
         var releaseTypes = ParseReleaseTypes(ReleaseTypesToFilter);
-        return new ContentFilterOptions(
+        return new MusicEnhancerOptions(
             releaseTypes,
             VersionFilterAction,
             DurationToleranceMs,
@@ -114,7 +114,9 @@ public class MusicEnhancerSettings : IProviderConfig
             EnableDemoVersionFiltering,
             MinimumTrackDurationMs,
             MaximumTrackDurationMs,
-            DeleteFilesAfterUnmonitor);
+            DeleteFilesAfterUnmonitor,
+            EnableExplicitTagging,
+            EnableMetadataWriting);
     }
 
     private static HashSet<string> ParseReleaseTypes(string? releaseTypesString)

@@ -7,7 +7,7 @@ namespace NzbDrone.Core.Plugins;
 /// <summary>
 /// Options for content filtering behavior.
 /// </summary>
-public class ContentFilterOptions
+public class MusicEnhancerOptions
 {
     public HashSet<string> ReleaseTypesToFilter { get; }
     public VersionFilterAction VersionFilterAction { get; }
@@ -24,7 +24,7 @@ public class ContentFilterOptions
     public bool EnableExplicitTagging { get; }
     public bool EnableMetadataWriting { get; }
 
-    public ContentFilterOptions(
+    public MusicEnhancerOptions(
         HashSet<string> releaseTypesToFilter,
         VersionFilterAction versionFilterAction,
         int durationToleranceMs,

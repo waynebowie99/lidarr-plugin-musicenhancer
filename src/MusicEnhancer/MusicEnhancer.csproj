@@ -6,7 +6,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<AssemblyName>Lidarr.Plugin.MusicEnhancer</AssemblyName>
-		<AssemblyVersion>1.0.0.0</AssemblyVersion>
+		<AssemblyVersion>1.0.1.1</AssemblyVersion>
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 		<Branch></Branch>
 		<Author>waynebowie99</Author>
@@ -31,35 +31,35 @@
 
 	<ItemGroup>
 		<Reference Include="Lidarr.Core">
-			<HintPath>..\..\_temp\lidarr\3.2.1.5196\Lidarr.Core.dll</HintPath>
+			<HintPath>..\..\_temp\lidarr\3.1.6.5102\Lidarr.Core.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
 		<Reference Include="Lidarr.Common">
-			<HintPath>..\..\_temp\lidarr\3.2.1.5196\Lidarr.Common.dll</HintPath>
+			<HintPath>..\..\_temp\lidarr\3.1.6.5102\Lidarr.Common.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
 		<Reference Include="Lidarr.Http">
-			<HintPath>..\..\_temp\lidarr\3.2.1.5196\Lidarr.Http.dll</HintPath>
+			<HintPath>..\..\_temp\lidarr\3.1.6.5102\Lidarr.Http.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
 		<Reference Include="NLog">
-			<HintPath>..\..\_temp\lidarr\3.2.1.5196\NLog.dll</HintPath>
+			<HintPath>..\..\_temp\lidarr\3.1.6.5102\NLog.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
 		<Reference Include="FluentValidation">
-			<HintPath>..\..\_temp\lidarr\3.2.1.5196\FluentValidation.dll</HintPath>
+			<HintPath>..\..\_temp\lidarr\3.1.6.5102\FluentValidation.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
 		<Reference Include="Newtonsoft.Json">
-			<HintPath>..\..\_temp\lidarr\3.2.1.5196\Newtonsoft.Json.dll</HintPath>
+			<HintPath>..\..\_temp\lidarr\3.1.6.5102\Newtonsoft.Json.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
 		<Reference Include="System.IO.Abstractions">
-			<HintPath>..\..\_temp\lidarr\3.2.1.5196\System.IO.Abstractions.dll</HintPath>
+			<HintPath>..\..\_temp\lidarr\3.1.6.5102\System.IO.Abstractions.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
 		<Reference Include="TagLibSharp">
-			<HintPath>..\..\_temp\lidarr\3.2.1.5196\TagLibSharp.dll</HintPath>
+			<HintPath>..\..\_temp\lidarr\3.1.6.5102\TagLibSharp.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
 	</ItemGroup>

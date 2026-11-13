@@ -12,15 +12,15 @@ import zipfile
 from pathlib import Path, PurePosixPath
 
 
-VERSION = "3.2.1.5196"
+VERSION = "3.1.6.5102"
 # GitHub release asset digests, not checksums fetched alongside the download.
-# https://github.com/Lidarr/Lidarr/releases/tag/v3.2.1.5196
+# https://github.com/Lidarr/Lidarr/releases/tag/v3.1.6.5102
 SHA256 = {
     "linux-core-x64": "8e14e5a2e9a89f7cb7a281434a7484d1b9632fc52f2cc06bb03a5102714dddd1",
     "linux-core-arm64": "e5c89688850885bc7becd779e668bbf423ca3fe37986704b70d9e9b217ea9e44",
     "osx-core-x64": "3143137d84cf8a06b4efda544af88c360247256993d05af05bb7a725ef3e96ed",
     "osx-core-arm64": "7fbebd4e5a5b01a8489a5dc733d7bb40c6881a42ccc87d32ace72640257bb725",
-    "windows-core-x64": "be4cd5452786c726c7e4f4214d565109a3d1c76ad93a2d50bb2a340bb9a50a9f",
+    "windows-core-x64": "4bd64517008f319d37d4d4585146a474ac2ff2d0183b1b751661f89f2b434280",
 }
 REQUIRED = {
     "Lidarr.Core.dll", "Lidarr.Common.dll", "Lidarr.Http.dll", "Lidarr.Api.V1.dll",

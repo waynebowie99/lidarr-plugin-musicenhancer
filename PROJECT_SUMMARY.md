@@ -10,7 +10,9 @@ The **Music Enhancer** plugin is a comprehensive Lidarr plugin for filtering rem
 
 2. **Explicit Tag Support**: Automatically detect and tag explicit content for Symfonium/Jellyfin compatibility (MP4, FLAC, MP3, OGG, Opus)
 
-3. **Version Detection**: Automatically identifies different version types:
+3. **Metadata Enrichment**: Enrich metadata from Last.fm, Deezer, Discogs, AcoustID, and MusicBrainz
+
+4. **Version Detection**: Automatically identifies different version types:
    - Remixes (remix, edit, bootleg, reinterpretation, etc.)
    - Edits (radio edit, album edit, extended version, etc.)
    - Live versions (live, live at, unplugged, etc.)

@@ -28,6 +28,9 @@ jobs:
       with:
         dotnet-version: '8.0.x'
 
+    - name: Prepare Lidarr binaries
+      run: python scripts/prepare-lidarr.py
+
     - name: Build plugin
       run: dotnet build src/MusicEnhancer/MusicEnhancer.csproj -c Release
 

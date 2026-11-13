@@ -31,35 +31,35 @@
 
 	<ItemGroup>
 		<Reference Include="Lidarr.Core">
-			<HintPath>..\..\Lidarr\_output\net8.0\Lidarr.Core.dll</HintPath>
+			<HintPath>..\..\_temp\lidarr\3.2.1.5196\Lidarr.Core.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
 		<Reference Include="Lidarr.Common">
-			<HintPath>..\..\Lidarr\_output\net8.0\Lidarr.Common.dll</HintPath>
+			<HintPath>..\..\_temp\lidarr\3.2.1.5196\Lidarr.Common.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
 		<Reference Include="Lidarr.Http">
-			<HintPath>..\..\Lidarr\_output\net8.0\Lidarr.Http.dll</HintPath>
+			<HintPath>..\..\_temp\lidarr\3.2.1.5196\Lidarr.Http.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
 		<Reference Include="NLog">
-			<HintPath>..\..\Lidarr\_output\net8.0\NLog.dll</HintPath>
+			<HintPath>..\..\_temp\lidarr\3.2.1.5196\NLog.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
 		<Reference Include="FluentValidation">
-			<HintPath>..\..\Lidarr\_output\net8.0\FluentValidation.dll</HintPath>
+			<HintPath>..\..\_temp\lidarr\3.2.1.5196\FluentValidation.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
 		<Reference Include="Newtonsoft.Json">
-			<HintPath>..\..\Lidarr\_output\net8.0\Newtonsoft.Json.dll</HintPath>
+			<HintPath>..\..\_temp\lidarr\3.2.1.5196\Newtonsoft.Json.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
 		<Reference Include="System.IO.Abstractions">
-			<HintPath>..\..\Lidarr\_output\net8.0\System.IO.Abstractions.dll</HintPath>
+			<HintPath>..\..\_temp\lidarr\3.2.1.5196\System.IO.Abstractions.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
 		<Reference Include="TagLibSharp">
-			<HintPath>..\..\Lidarr\_output\net8.0\TagLibSharp.dll</HintPath>
+			<HintPath>..\..\_temp\lidarr\3.2.1.5196\TagLibSharp.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
 	</ItemGroup>

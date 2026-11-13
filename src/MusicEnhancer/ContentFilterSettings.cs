@@ -44,7 +44,7 @@ public class MusicEnhancerSettings : IProviderConfig
     private const string DefaultReleaseTypesString = "Album, EP";
     private static readonly MusicEnhancerSettingsValidator Validator = new MusicEnhancerSettingsValidator();
 
-    public ContentFilterSettings()
+    public MusicEnhancerSettings()
     {
         VersionFilterAction = VersionFilterAction.FlagOnly;
         ReleaseTypesToFilter = DefaultReleaseTypesString;

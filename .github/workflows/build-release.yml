@@ -29,8 +29,7 @@ jobs:
         dotnet-version: '8.0.x'
 
     - name: Build plugin
-      run: |
-        dotnet build src/MusicEnhancer/MusicEnhancer.csproj -c Release
+      run: dotnet build src/MusicEnhancer/MusicEnhancer.csproj -c Release
       working-directory: MusicEnhancer
 
     - name: Upload DLL
@@ -59,17 +58,3 @@ jobs:
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  deploy-lidarr:
-    needs: release
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Deploy to Lidarr
-      run: |
-        echo "Plugin deployed successfully!"
-        echo "Version: ${{ github.ref_name }}"
-        echo "Repository: ${{ github.repository }}"
-      env:
-        DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}

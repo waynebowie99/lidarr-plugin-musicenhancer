@@ -30,38 +30,12 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Reference Include="Lidarr.Core">
-			<HintPath>..\..\_temp\lidarr\3.1.6.5102\Lidarr.Core.dll</HintPath>
+		<ProjectReference Include="..\..\Lidarr\src\NzbDrone.Common\Lidarr.Common.csproj" />
+		<ProjectReference Include="..\..\Lidarr\src\NzbDrone.Core\Lidarr.Core.csproj" />
+		<ProjectReference Include="..\..\Lidarr\src\Lidarr.Http\Lidarr.Http.csproj">
 			<Private>false</Private>
-		</Reference>
-		<Reference Include="Lidarr.Common">
-			<HintPath>..\..\_temp\lidarr\3.1.6.5102\Lidarr.Common.dll</HintPath>
-			<Private>false</Private>
-		</Reference>
-		<Reference Include="Lidarr.Http">
-			<HintPath>..\..\_temp\lidarr\3.1.6.5102\Lidarr.Http.dll</HintPath>
-			<Private>false</Private>
-		</Reference>
-		<Reference Include="NLog">
-			<HintPath>..\..\_temp\lidarr\3.1.6.5102\NLog.dll</HintPath>
-			<Private>false</Private>
-		</Reference>
-		<Reference Include="FluentValidation">
-			<HintPath>..\..\_temp\lidarr\3.1.6.5102\FluentValidation.dll</HintPath>
-			<Private>false</Private>
-		</Reference>
-		<Reference Include="Newtonsoft.Json">
-			<HintPath>..\..\_temp\lidarr\3.1.6.5102\Newtonsoft.Json.dll</HintPath>
-			<Private>false</Private>
-		</Reference>
-		<Reference Include="System.IO.Abstractions">
-			<HintPath>..\..\_temp\lidarr\3.1.6.5102\System.IO.Abstractions.dll</HintPath>
-			<Private>false</Private>
-		</Reference>
-		<Reference Include="TagLibSharp">
-			<HintPath>..\..\_temp\lidarr\3.1.6.5102\TagLibSharp.dll</HintPath>
-			<Private>false</Private>
-		</Reference>
+			<ExcludeAssets>runtime</ExcludeAssets>
+		</ProjectReference>
 	</ItemGroup>
 
 	<ItemGroup>
@@ -70,5 +44,16 @@
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
 		</PackageReference>
 	</ItemGroup>
+
+	<!-- Package release target - creates ZIP file for plugin installation -->
+	<Target Name="PackageRelease" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+		<PropertyGroup>
+			<ReleasePackageDir>$(IntermediateOutputPath)package/</ReleasePackageDir>
+		</PropertyGroup>
+		<RemoveDir Directories="$(ReleasePackageDir)" />
+		<MakeDir Directories="$(ReleasePackageDir)" />
+		<Copy SourceFiles="$(TargetPath);$(TargetDir)$(TargetName).pdb" DestinationFolder="$(ReleasePackageDir)" />
+		<ZipDirectory SourceDirectory="$(ReleasePackageDir)" DestinationFile="$(TargetDir)$(TargetName).net8.0.zip" Overwrite="true" />
+	</Target>
 
 </Project>

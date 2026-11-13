@@ -42,7 +42,7 @@ public class MusicEnhancerSettings : IProviderConfig
 {
     private static readonly ReleaseTypeFilter[] DefaultReleaseTypes = { ReleaseTypeFilter.Album, ReleaseTypeFilter.EP };
     private const string DefaultReleaseTypesString = "Album, EP";
-    private static readonly ContentFilterSettingsValidator Validator = new ContentFilterSettingsValidator();
+    private static readonly MusicEnhancerSettingsValidator Validator = new MusicEnhancerSettingsValidator();
 
     public ContentFilterSettings()
     {
@@ -192,7 +192,7 @@ public class MetadataEnhancerSettingsValidator : AbstractValidator<MetadataEnhan
     }
 }
 
-public class ContentFilterSettingsValidator : AbstractValidator<ContentFilterSettings>
+public class MusicEnhancerSettingsValidator : AbstractValidator<MusicEnhancerSettings>
 {
     public ContentFilterSettingsValidator()
     {

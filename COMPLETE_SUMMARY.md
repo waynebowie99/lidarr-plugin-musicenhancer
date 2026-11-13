@@ -92,9 +92,11 @@ The metadata enhancement service:
 
 3. **Track-Level Unmonitoring**: Unmonitor individual tracks within an album (not just entire albums!)
 
-4. **Explicit Tag Support**: Automatically detect and tag explicit content for Symfonium/Jellyfin compatibility
+4. **Explicit Tag Support**: Automatically detect and tag explicit content for Symfonium/Jellyfin compatibility (MP4, FLAC, MP3, OGG, Opus)
 
-5. **Configurable**: Customize which release types and version types to filter
+5. **Metadata Enrichment**: Enrich metadata from Last.fm, Deezer, Discogs, AcoustID, and MusicBrainz
+
+6. **Configurable**: Customize which release types and version types to filter
 
 6. **Flexible Actions**: Choose to flag for review, unmonitor, or skip detected versions
 

@@ -4,6 +4,8 @@ A Lidarr plugin that automatically identifies and filters remixes, edits, live v
 
 Also includes **metadata enhancement** for explicit tag support - automatically detects and tags explicit content for Symfonium/Jellyfin compatibility.
 
+Also includes **metadata enrichment** from multiple sources - Last.fm, Deezer, Discogs, AcoustID, and MusicBrainz for comprehensive metadata coverage.
+
 ## Features
 
 - **Remix Detection**: Automatically identify remixes, edits, bootlegs, reinterpretations, and reworks
@@ -14,6 +16,7 @@ Also includes **metadata enhancement** for explicit tag support - automatically 
 - **Version Filtering**: Detect version markers like "Version", "Alternative Version", etc.
 - **Track-Level Unmonitoring**: Unmonitor individual tracks within an album (not just entire albums)
 - **Explicit Tag Support**: Automatically detect and tag explicit content for Symfonium/Jellyfin compatibility (MP4, FLAC, MP3, OGG, Opus)
+- **Metadata Enrichment**: Enrich metadata from Last.fm, Deezer, Discogs, AcoustID, and MusicBrainz
 - **Configurable**: Customize which release types to filter and which version types to detect
 - **Flexible Actions**: Choose to flag for review, unmonitor, or skip detected versions
 

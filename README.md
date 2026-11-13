@@ -38,6 +38,12 @@ https://github.com/waynebowie99/lidarr-plugin-musicenhancer
 
 4. Lidarr will download the plugin and restart
 
+### Manual Installation (for development builds)
+
+1. Build the plugin: `dotnet build src/MusicEnhancer/MusicEnhancer.csproj`
+2. Copy `src/MusicEnhancer/bin/Release/net8.0/Lidarr.Plugin.MusicEnhancer.dll` to Lidarr's Plugins folder
+3. Restart Lidarr
+
 ## Configuration
 
 After installation, add a Music Enhancer connection:

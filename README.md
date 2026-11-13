@@ -2,6 +2,8 @@
 
 A Lidarr plugin that automatically identifies and filters remixes, edits, live versions, acoustic versions, and other alternate versions of tracks. Keep only the clean/original versions you want while unmonitoring versions you don't care about.
 
+Also includes **metadata enhancement** for explicit tag support - automatically detects and tags explicit content for Symfonium/Jellyfin compatibility.
+
 ## Features
 
 - **Remix Detection**: Automatically identify remixes, edits, bootlegs, reinterpretations, and reworks
@@ -11,7 +13,7 @@ A Lidarr plugin that automatically identifies and filters remixes, edits, live v
 - **Demo Detection**: Identify demo versions vs final releases
 - **Version Filtering**: Detect version markers like "Version", "Alternative Version", etc.
 - **Track-Level Unmonitoring**: Unmonitor individual tracks within an album (not just entire albums)
-- **Explicit Tag Support**: Automatically detect and tag explicit content for Symfonium/Jellyfin compatibility
+- **Explicit Tag Support**: Automatically detect and tag explicit content for Symfonium/Jellyfin compatibility (MP4, FLAC, MP3, OGG, Opus)
 - **Configurable**: Customize which release types to filter and which version types to detect
 - **Flexible Actions**: Choose to flag for review, unmonitor, or skip detected versions
 

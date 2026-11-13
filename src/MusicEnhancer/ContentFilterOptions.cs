@@ -23,6 +23,11 @@ public class MusicEnhancerOptions
     public bool DeleteFilesAfterUnmonitor { get; }
     public bool EnableExplicitTagging { get; }
     public bool EnableMetadataWriting { get; }
+    public string LastFmApiKey { get; }
+    public string DeezerApiKey { get; }
+    public string DiscogsApiKey { get; }
+    public string DiscogsApiSecret { get; }
+    public string AcoustIdApiKey { get; }
 
     public MusicEnhancerOptions(
         HashSet<string> releaseTypesToFilter,
@@ -38,7 +43,12 @@ public class MusicEnhancerOptions
         int maximumTrackDurationMs = 600000,
         bool deleteFilesAfterUnmonitor = true,
         bool enableExplicitTagging = true,
-        bool enableMetadataWriting = true)
+        bool enableMetadataWriting = true,
+        string lastFmApiKey = null,
+        string deezerApiKey = null,
+        string discogsApiKey = null,
+        string discogsApiSecret = null,
+        string acoustIdApiKey = null)
     {
         ReleaseTypesToFilter = releaseTypesToFilter ?? throw new ArgumentNullException(nameof(releaseTypesToFilter));
         VersionFilterAction = versionFilterAction;
@@ -54,6 +64,11 @@ public class MusicEnhancerOptions
         DeleteFilesAfterUnmonitor = deleteFilesAfterUnmonitor;
         EnableExplicitTagging = enableExplicitTagging;
         EnableMetadataWriting = enableMetadataWriting;
+        LastFmApiKey = lastFmApiKey;
+        DeezerApiKey = deezerApiKey;
+        DiscogsApiKey = discogsApiKey;
+        DiscogsApiSecret = discogsApiSecret;
+        AcoustIdApiKey = acoustIdApiKey;
     }
 
     public bool ShouldFilterReleaseType(string releaseType)

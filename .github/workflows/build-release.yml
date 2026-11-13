@@ -30,13 +30,12 @@ jobs:
 
     - name: Build plugin
       run: dotnet build src/MusicEnhancer/MusicEnhancer.csproj -c Release
-      working-directory: MusicEnhancer
 
     - name: Upload DLL
       uses: actions/upload-artifact@v4
       with:
         name: plugin-dll
-        path: MusicEnhancer/src/MusicEnhancer/bin/Release/net8.0/Lidarr.Plugin.MusicEnhancer.dll
+        path: src/MusicEnhancer/bin/Release/net8.0/Lidarr.Plugin.MusicEnhancer.dll
         retention-days: 7
 
   release:

@@ -4,6 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>NzbDrone.Core.Plugins</RootNamespace>
     <AssemblyName>Lidarr.Plugin.MusicEnhancer</AssemblyName>
+    <Version>1.0.0.0</Version>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>

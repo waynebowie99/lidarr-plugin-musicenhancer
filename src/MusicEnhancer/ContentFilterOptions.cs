@@ -1,11 +1,45 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace NzbDrone.Core.Plugins;
 
 /// <summary>
-/// Options for content filtering behavior.
+/// Represents a version match result for a track.
+/// </summary>
+public class VersionMatchResult
+{
+    public string TrackTitle { get; set; }
+    public string MatchedTrackTitle { get; }
+    public VersionType VersionType { get; }
+    public double Confidence { get; }
+    public string Reason { get; }
+
+    public VersionMatchResult(string trackTitle, string matchedTrackTitle, VersionType versionType, double confidence, string reason)
+    {
+        TrackTitle = trackTitle;
+        MatchedTrackTitle = matchedTrackTitle;
+        VersionType = versionType;
+        Confidence = confidence;
+        Reason = reason;
+    }
+}
+
+/// <summary>
+/// Represents the type of version detected.
+/// </summary>
+public enum VersionType
+{
+    None,
+    Remix,
+    Edit,
+    Version,
+    Live,
+    Acoustic,
+    Demo
+}
+
+/// <summary>
+/// Options for content filtering.
 /// </summary>
 public class MusicEnhancerOptions
 {
@@ -33,24 +67,24 @@ public class MusicEnhancerOptions
         HashSet<string> releaseTypesToFilter,
         VersionFilterAction versionFilterAction,
         int durationToleranceMs,
-        bool enableRemixFiltering = true,
-        bool enableVersionFiltering = true,
-        bool enableLiveVersionFiltering = true,
-        bool enableAcousticVersionFiltering = true,
-        bool enableEditVersionFiltering = true,
-        bool enableDemoVersionFiltering = true,
-        int minimumTrackDurationMs = 30000,
-        int maximumTrackDurationMs = 600000,
-        bool deleteFilesAfterUnmonitor = true,
-        bool enableExplicitTagging = true,
-        bool enableMetadataWriting = true,
-        string lastFmApiKey = null,
-        string deezerApiKey = null,
-        string discogsApiKey = null,
-        string discogsApiSecret = null,
-        string acoustIdApiKey = null)
+        bool enableRemixFiltering,
+        bool enableVersionFiltering,
+        bool enableLiveVersionFiltering,
+        bool enableAcousticVersionFiltering,
+        bool enableEditVersionFiltering,
+        bool enableDemoVersionFiltering,
+        int minimumTrackDurationMs,
+        int maximumTrackDurationMs,
+        bool deleteFilesAfterUnmonitor,
+        bool enableExplicitTagging,
+        bool enableMetadataWriting,
+        string lastFmApiKey,
+        string deezerApiKey,
+        string discogsApiKey,
+        string discogsApiSecret,
+        string acoustIdApiKey)
     {
-        ReleaseTypesToFilter = releaseTypesToFilter ?? throw new ArgumentNullException(nameof(releaseTypesToFilter));
+        ReleaseTypesToFilter = releaseTypesToFilter ?? new HashSet<string>();
         VersionFilterAction = versionFilterAction;
         DurationToleranceMs = durationToleranceMs;
         EnableRemixFiltering = enableRemixFiltering;
@@ -70,83 +104,14 @@ public class MusicEnhancerOptions
         DiscogsApiSecret = discogsApiSecret;
         AcoustIdApiKey = acoustIdApiKey;
     }
-
-    public bool ShouldFilterReleaseType(string releaseType)
-    {
-        return ReleaseTypesToFilter.Contains(releaseType);
-    }
 }
 
 /// <summary>
-/// Represents a version match result for a track.
+/// Action to take when a version is detected.
 /// </summary>
-public class VersionMatchResult
+public enum VersionFilterAction
 {
-    public Track Track { get; }
-    public Track? MatchedTrack { get; }
-    public VersionType VersionType { get; }
-    public double Confidence { get; }
-    public string Reason { get; }
-
-    public VersionMatchResult(Track track, Track? matchedTrack, VersionType versionType, double confidence, string reason)
-    {
-        Track = track;
-        MatchedTrack = matchedTrack;
-        VersionType = versionType;
-        Confidence = confidence;
-        Reason = reason;
-    }
-}
-
-/// <summary>
-/// Represents the type of version detected.
-/// </summary>
-public enum VersionType
-{
-    None,
-    Remix,
-    Edit,
-    Version,
-    Live,
-    Acoustic,
-    Demo
-}
-
-/// <summary>
-/// Contains filtering results for a release.
-/// </summary>
-public class FilterResult
-{
-    public int CandidatesChecked { get; }
-    public int AlbumsUnmonitored { get; }
-    public int TracksUnmonitored { get; }
-    public int Skipped { get; }
-    public int ReviewNeeded { get; }
-    public int UnmonitorFailures { get; }
-    public int DeleteFailures { get; }
-
-    public FilterResult(int candidatesChecked, int albumsUnmonitored, int tracksUnmonitored, int skipped, int reviewNeeded, int unmonitorFailures, int deleteFailures)
-    {
-        CandidatesChecked = candidatesChecked;
-        AlbumsUnmonitored = albumsUnmonitored;
-        TracksUnmonitored = tracksUnmonitored;
-        Skipped = skipped;
-        ReviewNeeded = reviewNeeded;
-        UnmonitorFailures = unmonitorFailures;
-        DeleteFailures = deleteFailures;
-    }
-
-    public static FilterResult Empty => new FilterResult(0, 0, 0, 0, 0, 0, 0);
-
-    public static FilterResult operator +(FilterResult left, FilterResult right)
-    {
-        return new FilterResult(
-            left.CandidatesChecked + right.CandidatesChecked,
-            left.AlbumsUnmonitored + right.AlbumsUnmonitored,
-            left.TracksUnmonitored + right.TracksUnmonitored,
-            left.Skipped + right.Skipped,
-            left.ReviewNeeded + right.ReviewNeeded,
-            left.UnmonitorFailures + right.UnmonitorFailures,
-            left.DeleteFailures + right.DeleteFailures);
-    }
+    FlagOnly = 0,
+    Unmonitor = 1,
+    Skip = 2
 }

@@ -8,18 +8,6 @@ using NzbDrone.Core.Validation;
 
 namespace NzbDrone.Core.Plugins;
 
-public enum VersionFilterAction
-{
-    [FieldOption(Label = "Flag for review", Hint = "Flag versions for manual review. Never auto-unmonitor.")]
-    FlagOnly = 0,
-
-    [FieldOption(Label = "Unmonitor", Hint = "Automatically unmonitor identified versions.")]
-    Unmonitor = 1,
-
-    [FieldOption(Label = "Skip", Hint = "Ignore versions and leave them monitored.")]
-    Skip = 2
-}
-
 public enum ReleaseTypeFilter
 {
     [FieldOption(Label = "Albums", Hint = "Filter remixes and versions on albums")]
@@ -95,6 +83,27 @@ public class MusicEnhancerSettings : IProviderConfig
 
     [FieldDefinition(11, Label = "Delete files after unmonitor", Type = FieldType.Checkbox, HelpText = "Delete media files after unmonitoring a version. Defaults to true (delete files).")]
     public bool DeleteFilesAfterUnmonitor { get; set; }
+
+    [FieldDefinition(12, Label = "Enable explicit tagging", Type = FieldType.Checkbox, HelpText = "Automatically detect and tag explicit content in track metadata. Required for Symfonium/Jellyfin compatibility. On by default.")]
+    public bool EnableExplicitTagging { get; set; }
+
+    [FieldDefinition(13, Label = "Enable metadata writing", Type = FieldType.Checkbox, HelpText = "Write metadata tags to files. Required for explicit tagging to work. On by default.")]
+    public bool EnableMetadataWriting { get; set; }
+
+    [FieldDefinition(14, Label = "Last.fm API Key", Type = FieldType.Textbox, HelpText = "API key for Last.fm metadata enrichment (play counts, ratings, tags, genres). Optional but recommended.")]
+    public string LastFmApiKey { get; set; }
+
+    [FieldDefinition(15, Label = "Deezer API Key", Type = FieldType.Textbox, HelpText = "API key for Deezer metadata enrichment (duration, preview, album info). Optional but recommended.")]
+    public string DeezerApiKey { get; set; }
+
+    [FieldDefinition(16, Label = "Discogs API Key", Type = FieldType.Textbox, HelpText = "API key for Discogs metadata enrichment (release date, label, catalog number). Optional but recommended.")]
+    public string DiscogsApiKey { get; set; }
+
+    [FieldDefinition(17, Label = "Discogs API Secret", Type = FieldType.Password, HelpText = "API secret for Discogs authentication. Optional but recommended.")]
+    public string DiscogsApiSecret { get; set; }
+
+    [FieldDefinition(18, Label = "AcoustID API Key", Type = FieldType.Textbox, HelpText = "API key for AcoustID audio fingerprinting (MusicBrainz Recording ID, duration accuracy). Optional but recommended.")]
+    public string AcoustIdApiKey { get; set; }
 
     /// <summary>
     /// Converts settings to a validated MusicEnhancerOptions snapshot.
@@ -216,7 +225,7 @@ public class MetadataEnhancerSettingsValidator : AbstractValidator<MetadataEnhan
 
 public class MusicEnhancerSettingsValidator : AbstractValidator<MusicEnhancerSettings>
 {
-    public ContentFilterSettingsValidator()
+    public MusicEnhancerSettingsValidator()
     {
         RuleFor(c => c.DurationToleranceMs).GreaterThan(0)
             .WithMessage("Duration tolerance must be greater than 0");

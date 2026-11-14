@@ -48,6 +48,7 @@ public class MusicEnhancerSettings : IProviderConfig
         DeleteFilesAfterUnmonitor = true; // Default to delete files
         EnableExplicitTagging = true;
         EnableMetadataWriting = true;
+        KeepCleanVersions = true;
         ScanLibraryOnStartup = false;
     }
 
@@ -108,7 +109,10 @@ public class MusicEnhancerSettings : IProviderConfig
     [FieldDefinition(18, Label = "AcoustID API Key", Type = FieldType.Textbox, HelpText = "API key for AcoustID audio fingerprinting (MusicBrainz Recording ID, duration accuracy). Optional but recommended.")]
     public string? AcoustIdApiKey { get; set; }
 
-    [FieldDefinition(19, Label = "Scan library on startup", Type = FieldType.Checkbox, HelpText = "Run the version filter over existing monitored albums every time Lidarr starts. Can take a while on large libraries. Off by default.")]
+    [FieldDefinition(19, Label = "Keep clean versions", Type = FieldType.Checkbox, HelpText = "Keep tracks marked Clean, Clean Version, Clean Edit, etc. instead of filtering them as edits or versions. On by default.")]
+    public bool KeepCleanVersions { get; set; }
+
+    [FieldDefinition(20, Label = "Scan library on startup", Type = FieldType.Checkbox, HelpText = "Run the version filter over existing monitored albums every time Lidarr starts. Can take a while on large libraries. Off by default.")]
     public bool ScanLibraryOnStartup { get; set; }
 
     /// <summary>
@@ -132,6 +136,7 @@ public class MusicEnhancerSettings : IProviderConfig
             DeleteFilesAfterUnmonitor,
             EnableExplicitTagging,
             EnableMetadataWriting,
+            KeepCleanVersions,
             LastFmApiKey,
             DeezerApiKey,
             DiscogsApiKey,

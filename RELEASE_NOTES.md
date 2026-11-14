@@ -1,6 +1,16 @@
-# Music Enhancer Plugin v1.0.1.5
+# Music Enhancer Plugin v1.0.1.6
 
 ## What's New
+
+### Keep Clean Versions
+- New **Keep clean versions** option, enabled by default
+- Tracks marked `Clean`, `Clean Version`, `Clean Edit`, `[Clean]`, `- Clean`, etc. are kept
+- Other edits such as `Radio Edit` and `Album Edit` are still filtered
+- Uncheck the option if you want clean versions filtered like any other edit
+
+### Fixes
+- Edits are now classified as edits instead of remixes
+- Clean markers no longer get classified as generic versions
 
 ### Startup Library Scan
 - New **Scan library on startup** option in the Music Enhancer connection

@@ -6,7 +6,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<AssemblyName>Lidarr.Plugin.MusicEnhancer</AssemblyName>
-		<AssemblyVersion>1.0.1.5</AssemblyVersion>
+		<AssemblyVersion>1.0.1.6</AssemblyVersion>
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 		<Branch></Branch>
 		<Author>waynebowie99</Author>

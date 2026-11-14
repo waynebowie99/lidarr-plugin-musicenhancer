@@ -35,7 +35,8 @@ public enum VersionType
     Version,
     Live,
     Acoustic,
-    Demo
+    Demo,
+    Clean
 }
 
 /// <summary>
@@ -57,6 +58,7 @@ public class MusicEnhancerOptions
     public bool DeleteFilesAfterUnmonitor { get; }
     public bool EnableExplicitTagging { get; }
     public bool EnableMetadataWriting { get; }
+    public bool KeepCleanVersions { get; }
     public string? LastFmApiKey { get; }
     public string? DeezerApiKey { get; }
     public string? DiscogsApiKey { get; }
@@ -78,6 +80,7 @@ public class MusicEnhancerOptions
         bool deleteFilesAfterUnmonitor,
         bool enableExplicitTagging,
         bool enableMetadataWriting,
+        bool keepCleanVersions,
         string? lastFmApiKey,
         string? deezerApiKey,
         string? discogsApiKey,
@@ -98,6 +101,7 @@ public class MusicEnhancerOptions
         DeleteFilesAfterUnmonitor = deleteFilesAfterUnmonitor;
         EnableExplicitTagging = enableExplicitTagging;
         EnableMetadataWriting = enableMetadataWriting;
+        KeepCleanVersions = keepCleanVersions;
         LastFmApiKey = lastFmApiKey;
         DeezerApiKey = deezerApiKey;
         DiscogsApiKey = discogsApiKey;

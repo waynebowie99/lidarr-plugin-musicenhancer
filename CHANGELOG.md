@@ -5,6 +5,16 @@ All notable changes to the Lidarr Music Enhancer plugin will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1.6] - 2026-11-14
+
+### Added
+- "Keep clean versions" setting (on by default) so `Clean`, `Clean Version`, `Clean Edit`, etc. are kept while other edits are still filtered
+- Clean version detection is separate from edit/version detection
+
+### Fixed
+- Edits are now classified as edits instead of remixes
+- Clean markers no longer cause a title to be treated as a generic version
+
 ## [1.0.1.5] - 2026-11-14
 
 ### Added

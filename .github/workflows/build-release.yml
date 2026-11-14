@@ -32,11 +32,13 @@ jobs:
     - name: Build plugin
       run: dotnet build src/MusicEnhancer/MusicEnhancer.csproj -c Release
 
-    - name: Upload DLL
+    - name: Upload plugin package
       uses: actions/upload-artifact@v4
       with:
-        name: plugin-dll
-        path: src/MusicEnhancer/bin/Release/net8.0/Lidarr.Plugin.MusicEnhancer.dll
+        name: plugin-package
+        path: |
+          src/MusicEnhancer/bin/Release/net8.0/Lidarr.Plugin.MusicEnhancer.dll
+          src/MusicEnhancer/bin/Release/net8.0/Lidarr.Plugin.MusicEnhancer.net8.0.zip
         retention-days: 7
 
   release:
@@ -47,16 +49,18 @@ jobs:
       contents: write
     
     steps:
-    - name: Download DLL
+    - name: Download plugin package
       uses: actions/download-artifact@v4
       with:
-        name: plugin-dll
+        name: plugin-package
         path: release/
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
-        files: release/Lidarr.Plugin.MusicEnhancer.dll
+        files: |
+          release/Lidarr.Plugin.MusicEnhancer.dll
+          release/Lidarr.Plugin.MusicEnhancer.net8.0.zip
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

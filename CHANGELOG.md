@@ -5,6 +5,17 @@ All notable changes to the Lidarr Music Enhancer plugin will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1.3] - 2026-11-14
+
+### Fixed
+- Plugin load failure (`Could not load file or assembly 'Lidarr.Core, Version=3.2.1.5196'`)
+  on Lidarr 3.1.x hosts by targeting Lidarr `3.1.6.5079` reference assemblies
+- Restored the `MusicEnhancerPlugin : Plugin` entry point so Lidarr discovers the plugin
+
+### Changed
+- Build against Lidarr `3.1.6.5079` references so the plugin loads on 3.1.x and newer 3.2.x hosts
+- Release assets now include the `net8.0.zip` package required by Lidarr's plugin installer
+
 ## [1.0.1.2] - 2026-11-14
 
 ### Fixed
@@ -13,7 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Build against the verified prebuilt Lidarr release assemblies instead of the Lidarr source tree
-- Target Lidarr `3.1.6.5079` references so the plugin also loads on newer Lidarr 3.1.x/3.2.x hosts
 - Removed the Lidarr git submodule; `scripts/prepare-lidarr.py` downloads the reference assemblies
 - Updated build scripts, CI workflow, and documentation for the new build process
 

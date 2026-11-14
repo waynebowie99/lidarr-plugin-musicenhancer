@@ -1,10 +1,16 @@
-# Music Enhancer Plugin v1.0.1.2
+# Music Enhancer Plugin v1.0.1.3
 
 ## What's New
 
+### Compatibility Fix
+- Fixed the plugin load failure on Lidarr 3.1.x hosts
+  (`Could not load file or assembly 'Lidarr.Core, Version=3.2.1.5196'`)
+- Compiles against Lidarr `3.1.6.5079` reference assemblies so it loads on 3.1.x and newer 3.2.x hosts
+- Restored the plugin entry point so Lidarr detects and lists the plugin
+
 ### Build and Packaging
 - Build against the verified prebuilt Lidarr release assemblies
-- Target Lidarr `3.1.6.5079` references so the plugin loads on 3.1.x and newer 3.2.x hosts
+- Release assets include the `net8.0.zip` package required by Lidarr's plugin installer
 - Fixed StyleCop `SA1200` build failures
 - Removed the Lidarr git submodule; the build script downloads reference assemblies automatically
 - Clean build with zero warnings
@@ -49,7 +55,7 @@
 
 ## Requirements
 
-- Lidarr nightly build
+- Lidarr `3.1.6` or newer running on .NET 8
 - .NET 8.0 SDK (for building)
 
 ## License

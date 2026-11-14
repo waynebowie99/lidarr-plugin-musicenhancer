@@ -1,6 +1,12 @@
-# Music Enhancer Plugin v1.0.1.4
+# Music Enhancer Plugin v1.0.1.5
 
 ## What's New
+
+### Startup Library Scan
+- New **Scan library on startup** option in the Music Enhancer connection
+- When enabled, existing monitored albums are processed every time Lidarr starts
+- Runs in the background so Lidarr startup is not blocked
+- Off by default
 
 ### Connect Provider
 - The plugin now appears under **Settings → Connect** as **Music Enhancer**

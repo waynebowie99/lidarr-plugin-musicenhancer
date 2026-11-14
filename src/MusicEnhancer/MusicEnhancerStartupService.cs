@@ -1,0 +1,86 @@
+using System;
+using System.Linq;
+using NLog;
+using NzbDrone.Core.Lifecycle;
+using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.Music;
+using NzbDrone.Core.Notifications;
+
+namespace NzbDrone.Core.Plugins;
+
+/// <summary>
+/// Runs a one-off scan of the existing library when Lidarr starts, if the
+/// Music Enhancer connection has "Scan library on startup" enabled.
+/// </summary>
+public class MusicEnhancerStartupService : IHandleAsync<ApplicationStartedEvent>
+{
+    private readonly IArtistService _artistService;
+    private readonly IAlbumService _albumService;
+    private readonly IContentFilterService _contentFilterService;
+    private readonly INotificationFactory _notificationFactory;
+    private readonly Logger _logger;
+
+    public MusicEnhancerStartupService(
+        IArtistService artistService,
+        IAlbumService albumService,
+        IContentFilterService contentFilterService,
+        INotificationFactory notificationFactory,
+        Logger logger)
+    {
+        _artistService = artistService ?? throw new ArgumentNullException(nameof(artistService));
+        _albumService = albumService ?? throw new ArgumentNullException(nameof(albumService));
+        _contentFilterService = contentFilterService ?? throw new ArgumentNullException(nameof(contentFilterService));
+        _notificationFactory = notificationFactory ?? throw new ArgumentNullException(nameof(notificationFactory));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    public void HandleAsync(ApplicationStartedEvent message)
+    {
+        var definition = _notificationFactory.All()
+            .FirstOrDefault(d => string.Equals(d.Implementation, nameof(MusicEnhancer), StringComparison.OrdinalIgnoreCase));
+
+        if (definition?.Settings is not MusicEnhancerSettings settings)
+        {
+            _logger.Debug("MusicEnhancer: No connection configured; skipping startup scan");
+            return;
+        }
+
+        if (!settings.ScanLibraryOnStartup)
+        {
+            _logger.Debug("MusicEnhancer: 'Scan library on startup' is disabled; skipping startup scan");
+            return;
+        }
+
+        var options = settings.ToFilterOptions();
+        var artistsScanned = 0;
+        var albumsScanned = 0;
+
+        _logger.Info("MusicEnhancer: Starting library scan on startup (action={0})", options.VersionFilterAction);
+
+        try
+        {
+            foreach (var artist in _artistService.GetAllArtists())
+            {
+                if (!artist.Monitored)
+                {
+                    continue;
+                }
+
+                artistsScanned++;
+
+                foreach (var album in _albumService.GetAlbumsByArtist(artist.Id).Where(a => a.Monitored))
+                {
+                    _contentFilterService.FilterContentForArtist(artist, album, options);
+                    albumsScanned++;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "MusicEnhancer: Startup library scan failed");
+            return;
+        }
+
+        _logger.Info("MusicEnhancer: Startup library scan complete ({0} artists, {1} albums)", artistsScanned, albumsScanned);
+    }
+}

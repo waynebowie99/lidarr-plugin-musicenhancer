@@ -65,7 +65,7 @@ public class ContentFilterService : IContentFilterService
             return;
         }
 
-        _logger.Info("MusicEnhancer: Filtering content for artist '{ArtistName}', album '{AlbumTitle}'", artist.Name, importedAlbum.Title);
+        _logger.Debug("MusicEnhancer: Filtering content for artist '{ArtistName}', album '{AlbumTitle}'", artist.Name, importedAlbum.Title);
 
         try
         {
@@ -75,7 +75,7 @@ public class ContentFilterService : IContentFilterService
 
             if (tracksWithFiles.Count == 0)
             {
-                _logger.Info("MusicEnhancer: Album '{AlbumTitle}' has no downloaded tracks. Skipping.", importedAlbum.Title);
+                _logger.Debug("MusicEnhancer: Album '{AlbumTitle}' has no downloaded tracks. Skipping.", importedAlbum.Title);
                 return;
             }
 
@@ -101,7 +101,7 @@ public class ContentFilterService : IContentFilterService
 
             if (versionTracks.Count == 0)
             {
-                _logger.Info("MusicEnhancer: No unwanted tracks found in album '{AlbumTitle}'", importedAlbum.Title);
+                _logger.Debug("MusicEnhancer: No unwanted tracks found in album '{AlbumTitle}'", importedAlbum.Title);
                 return;
             }
 

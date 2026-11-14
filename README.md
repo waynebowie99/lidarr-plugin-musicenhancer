@@ -70,10 +70,13 @@ After installation, add a Music Enhancer connection:
 | **Minimum track duration (ms)** | 30000 | Minimum track duration in milliseconds (30 seconds) |
 | **Maximum track duration (ms)** | 600000 | Maximum track duration in milliseconds (10 minutes) |
 | **Delete files after unmonitor** | On | Delete media files after unmonitoring a version. Defaults to true (delete files). |
+| **Scan library on startup** | Off | Run the version filter over existing monitored albums when Lidarr starts. Can take a while on large libraries. |
 
 ## How It Works
 
-When you import an album or EP, Music Enhancer analyzes all tracks to identify versions:
+When you import an album or EP, Music Enhancer analyzes all tracks to identify versions.
+
+To apply the filter to albums that were already in your library, enable **Scan library on startup** in the Music Enhancer connection. The scan runs in the background each time Lidarr starts.
 
 1. **Remix Detection**: Looks for remix, edit, bootleg, reinterpretation, rework, remake, etc. in track titles
 2. **Edit Detection**: Identifies radio edits, album edits, single edits, extended versions, etc.

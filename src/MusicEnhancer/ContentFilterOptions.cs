@@ -36,7 +36,8 @@ public enum VersionType
     Live,
     Acoustic,
     Demo,
-    Clean
+    Clean,
+    Commentary
 }
 
 /// <summary>
@@ -53,6 +54,7 @@ public class MusicEnhancerOptions
     public bool EnableAcousticVersionFiltering { get; }
     public bool EnableEditVersionFiltering { get; }
     public bool EnableDemoVersionFiltering { get; }
+    public bool EnableCommentaryFiltering { get; }
     public int MinimumTrackDurationMs { get; }
     public int MaximumTrackDurationMs { get; }
     public bool DeleteFilesAfterUnmonitor { get; }
@@ -75,6 +77,7 @@ public class MusicEnhancerOptions
         bool enableAcousticVersionFiltering,
         bool enableEditVersionFiltering,
         bool enableDemoVersionFiltering,
+        bool enableCommentaryFiltering,
         int minimumTrackDurationMs,
         int maximumTrackDurationMs,
         bool deleteFilesAfterUnmonitor,
@@ -96,6 +99,7 @@ public class MusicEnhancerOptions
         EnableAcousticVersionFiltering = enableAcousticVersionFiltering;
         EnableEditVersionFiltering = enableEditVersionFiltering;
         EnableDemoVersionFiltering = enableDemoVersionFiltering;
+        EnableCommentaryFiltering = enableCommentaryFiltering;
         MinimumTrackDurationMs = minimumTrackDurationMs;
         MaximumTrackDurationMs = maximumTrackDurationMs;
         DeleteFilesAfterUnmonitor = deleteFilesAfterUnmonitor;

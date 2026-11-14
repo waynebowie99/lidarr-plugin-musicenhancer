@@ -133,6 +133,7 @@ public class ContentFilterService : IContentFilterService
             VersionType.Acoustic => options.EnableAcousticVersionFiltering,
             VersionType.Demo => options.EnableDemoVersionFiltering,
             VersionType.Clean => !options.KeepCleanVersions,
+            VersionType.Commentary => options.EnableCommentaryFiltering,
             _ => false
         };
     }

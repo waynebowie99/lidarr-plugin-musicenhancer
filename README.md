@@ -13,6 +13,7 @@ Also includes **metadata enrichment** from multiple sources - Last.fm, Deezer, D
 - **Live Version Detection**: Identify live recordings vs studio versions
 - **Acoustic Version Detection**: Find acoustic versions vs original recordings
 - **Demo Detection**: Identify demo versions vs final releases
+- **Commentary Detection**: Identify commentary tracks (`Commentary`, `Album Commentary`, `Track Commentary`, etc.)
 - **Version Filtering**: Detect version markers like "Version", "Alternative Version", etc.
 - **Track-Level Unmonitoring**: Unmonitor individual tracks within an album (not just entire albums)
 - **Explicit Tag Support**: Automatically detect and tag explicit content for Symfonium/Jellyfin compatibility (MP4, FLAC, MP3, OGG, Opus)
@@ -68,6 +69,7 @@ After installation, add a Music Enhancer connection:
 | **Enable edit filtering** | On | Filter edit versions |
 | **Keep clean versions** | On | Keep tracks marked Clean, Clean Version, Clean Edit, etc. instead of filtering them as edits or versions |
 | **Enable demo filtering** | On | Filter demo versions |
+| **Enable commentary filtering** | On | Filter commentary tracks (Commentary, Album Commentary, Track Commentary, etc.) |
 | **Minimum track duration (ms)** | 30000 | Minimum track duration in milliseconds (30 seconds) |
 | **Maximum track duration (ms)** | 600000 | Maximum track duration in milliseconds (10 minutes) |
 | **Delete files after unmonitor** | On | Delete media files after unmonitoring a version. Defaults to true (delete files). |

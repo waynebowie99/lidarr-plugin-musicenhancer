@@ -24,6 +24,9 @@ public static class VersionMatcher
     // Clean edits are a separate category: they are explicit-free versions of a
     // song, not alternate edits. Match common forms like "(Clean)",
     // "[Clean Version]", "Clean Edit" and "- Clean".
+    private static readonly Regex CommentaryPattern =
+        new(@"\bcommentary\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private static readonly Regex[] CleanPatterns =
     {
         new(@"\(\s*clean(?:\s+(?:version|edit|mix|album|radio|single))?\s*\)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
@@ -51,8 +54,14 @@ public static class VersionMatcher
 
         var title = track.Title.ToLowerInvariant();
 
-        // Check clean markers first so "Clean Edit" is not classified as a
-        // regular edit and "Clean Version" is not classified as a version.
+        if (CommentaryPattern.IsMatch(title))
+        {
+            return new VersionMatchResult(track.Title, default, VersionType.Commentary, 0.95, "Detected commentary track");
+        }
+
+        // Check clean markers before the edit/version patterns so "Clean Edit"
+        // is not classified as a regular edit and "Clean Version" is not
+        // classified as a version.
         if (CleanPatterns.Any(pattern => pattern.IsMatch(title)))
         {
             return new VersionMatchResult(track.Title, default, VersionType.Clean, 0.95, "Detected clean version marker");

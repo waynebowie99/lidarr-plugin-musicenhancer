@@ -43,6 +43,7 @@ public class MusicEnhancerSettings : IProviderConfig
         EnableAcousticVersionFiltering = true;
         EnableEditVersionFiltering = true;
         EnableDemoVersionFiltering = true;
+        EnableCommentaryFiltering = true;
         MinimumTrackDurationMs = 30000; // 30 seconds minimum
         MaximumTrackDurationMs = 600000; // 10 minutes maximum
         DeleteFilesAfterUnmonitor = true; // Default to delete files
@@ -112,7 +113,10 @@ public class MusicEnhancerSettings : IProviderConfig
     [FieldDefinition(19, Label = "Keep clean versions", Type = FieldType.Checkbox, HelpText = "Keep tracks marked Clean, Clean Version, Clean Edit, etc. instead of filtering them as edits or versions. On by default.")]
     public bool KeepCleanVersions { get; set; }
 
-    [FieldDefinition(20, Label = "Scan library on startup", Type = FieldType.Checkbox, HelpText = "Run the version filter over existing monitored albums every time Lidarr starts. Can take a while on large libraries. Off by default.")]
+    [FieldDefinition(20, Label = "Enable commentary filtering", Type = FieldType.Checkbox, HelpText = "Filter commentary tracks (Commentary, Album Commentary, Track Commentary, etc.). On by default.")]
+    public bool EnableCommentaryFiltering { get; set; }
+
+    [FieldDefinition(21, Label = "Scan library on startup", Type = FieldType.Checkbox, HelpText = "Run the version filter over existing monitored albums every time Lidarr starts. Can take a while on large libraries. Off by default.")]
     public bool ScanLibraryOnStartup { get; set; }
 
     /// <summary>
@@ -131,6 +135,7 @@ public class MusicEnhancerSettings : IProviderConfig
             EnableAcousticVersionFiltering,
             EnableEditVersionFiltering,
             EnableDemoVersionFiltering,
+            EnableCommentaryFiltering,
             MinimumTrackDurationMs,
             MaximumTrackDurationMs,
             DeleteFilesAfterUnmonitor,

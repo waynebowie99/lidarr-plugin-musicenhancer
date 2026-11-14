@@ -1,6 +1,11 @@
-# Music Enhancer Plugin v1.0.1.6
+# Music Enhancer Plugin v1.0.1.7
 
 ## What's New
+
+### Commentary Filtering
+- Commentary tracks are now detected and filtered
+- Matches `Song (Commentary)`, `Album Commentary`, `Track Commentary`, `Commentary`, etc.
+- Controlled by **Enable commentary filtering**, on by default
 
 ### Keep Clean Versions
 - New **Keep clean versions** option, enabled by default

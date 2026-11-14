@@ -91,19 +91,19 @@ public class MusicEnhancerSettings : IProviderConfig
     public bool EnableMetadataWriting { get; set; }
 
     [FieldDefinition(14, Label = "Last.fm API Key", Type = FieldType.Textbox, HelpText = "API key for Last.fm metadata enrichment (play counts, ratings, tags, genres). Optional but recommended.")]
-    public string LastFmApiKey { get; set; }
+    public string? LastFmApiKey { get; set; }
 
     [FieldDefinition(15, Label = "Deezer API Key", Type = FieldType.Textbox, HelpText = "API key for Deezer metadata enrichment (duration, preview, album info). Optional but recommended.")]
-    public string DeezerApiKey { get; set; }
+    public string? DeezerApiKey { get; set; }
 
     [FieldDefinition(16, Label = "Discogs API Key", Type = FieldType.Textbox, HelpText = "API key for Discogs metadata enrichment (release date, label, catalog number). Optional but recommended.")]
-    public string DiscogsApiKey { get; set; }
+    public string? DiscogsApiKey { get; set; }
 
     [FieldDefinition(17, Label = "Discogs API Secret", Type = FieldType.Password, HelpText = "API secret for Discogs authentication. Optional but recommended.")]
-    public string DiscogsApiSecret { get; set; }
+    public string? DiscogsApiSecret { get; set; }
 
     [FieldDefinition(18, Label = "AcoustID API Key", Type = FieldType.Textbox, HelpText = "API key for AcoustID audio fingerprinting (MusicBrainz Recording ID, duration accuracy). Optional but recommended.")]
-    public string AcoustIdApiKey { get; set; }
+    public string? AcoustIdApiKey { get; set; }
 
     /// <summary>
     /// Converts settings to a validated MusicEnhancerOptions snapshot.
@@ -195,19 +195,19 @@ public class MetadataEnhancerSettings
     public bool EnableMetadataWriting { get; set; }
 
     [FieldDefinition(14, Label = "Last.fm API Key", Type = FieldType.Textbox, HelpText = "API key for Last.fm metadata enrichment (play counts, ratings, tags, genres). Optional but recommended.")]
-    public string LastFmApiKey { get; set; }
+    public string? LastFmApiKey { get; set; }
 
     [FieldDefinition(15, Label = "Deezer API Key", Type = FieldType.Textbox, HelpText = "API key for Deezer metadata enrichment (duration, preview, album info). Optional but recommended.")]
-    public string DeezerApiKey { get; set; }
+    public string? DeezerApiKey { get; set; }
 
     [FieldDefinition(16, Label = "Discogs API Key", Type = FieldType.Textbox, HelpText = "API key for Discogs metadata enrichment (release date, label, catalog number). Optional but recommended.")]
-    public string DiscogsApiKey { get; set; }
+    public string? DiscogsApiKey { get; set; }
 
     [FieldDefinition(17, Label = "Discogs API Secret", Type = FieldType.Password, HelpText = "API secret for Discogs authentication. Optional but recommended.")]
-    public string DiscogsApiSecret { get; set; }
+    public string? DiscogsApiSecret { get; set; }
 
     [FieldDefinition(18, Label = "AcoustID API Key", Type = FieldType.Textbox, HelpText = "API key for AcoustID audio fingerprinting (MusicBrainz Recording ID, duration accuracy). Optional but recommended.")]
-    public string AcoustIdApiKey { get; set; }
+    public string? AcoustIdApiKey { get; set; }
 
     public NzbDroneValidationResult Validate()
     {

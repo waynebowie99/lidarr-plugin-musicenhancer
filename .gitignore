@@ -1,4 +1,6 @@
 _temp/
+__pycache__/
+*.pyc
 *.zip
 *.suo
 *.user

@@ -65,5 +65,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Lidarr nightly build
 - .NET 8.0 SDK
-- Lidarr source code (for development)
+- Python 3 (to download Lidarr reference assemblies)
 

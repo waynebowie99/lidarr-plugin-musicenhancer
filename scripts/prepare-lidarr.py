@@ -25,6 +25,7 @@ SHA256 = {
 REQUIRED = {
     "Lidarr.Core.dll", "Lidarr.Common.dll", "Lidarr.Http.dll", "Lidarr.Api.V1.dll",
     "NLog.dll", "FluentValidation.dll", "Newtonsoft.Json.dll", "System.IO.Abstractions.dll",
+    "TagLibSharp.dll",
 }
 
 

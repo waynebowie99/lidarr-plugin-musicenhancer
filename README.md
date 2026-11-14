@@ -40,9 +40,10 @@ https://github.com/waynebowie99/lidarr-plugin-musicenhancer
 
 ### Manual Installation (for development builds)
 
-1. Build the plugin: `dotnet build src/MusicEnhancer/MusicEnhancer.csproj`
-2. Copy `src/MusicEnhancer/bin/Release/net8.0/Lidarr.Plugin.MusicEnhancer.dll` to Lidarr's Plugins folder
-3. Restart Lidarr
+1. Download the Lidarr reference assemblies: `python scripts/prepare-lidarr.py`
+2. Build the plugin: `dotnet build src/MusicEnhancer/MusicEnhancer.csproj -c Release`
+3. Copy `src/MusicEnhancer/bin/Release/net8.0/Lidarr.Plugin.MusicEnhancer.dll` to Lidarr's Plugins folder
+4. Restart Lidarr
 
 ## Configuration
 

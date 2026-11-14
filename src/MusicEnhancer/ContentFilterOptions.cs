@@ -9,12 +9,12 @@ namespace NzbDrone.Core.Plugins;
 public class VersionMatchResult
 {
     public string TrackTitle { get; set; }
-    public string MatchedTrackTitle { get; }
+    public string? MatchedTrackTitle { get; }
     public VersionType VersionType { get; }
     public double Confidence { get; }
     public string Reason { get; }
 
-    public VersionMatchResult(string trackTitle, string matchedTrackTitle, VersionType versionType, double confidence, string reason)
+    public VersionMatchResult(string trackTitle, string? matchedTrackTitle, VersionType versionType, double confidence, string reason)
     {
         TrackTitle = trackTitle;
         MatchedTrackTitle = matchedTrackTitle;
@@ -57,11 +57,11 @@ public class MusicEnhancerOptions
     public bool DeleteFilesAfterUnmonitor { get; }
     public bool EnableExplicitTagging { get; }
     public bool EnableMetadataWriting { get; }
-    public string LastFmApiKey { get; }
-    public string DeezerApiKey { get; }
-    public string DiscogsApiKey { get; }
-    public string DiscogsApiSecret { get; }
-    public string AcoustIdApiKey { get; }
+    public string? LastFmApiKey { get; }
+    public string? DeezerApiKey { get; }
+    public string? DiscogsApiKey { get; }
+    public string? DiscogsApiSecret { get; }
+    public string? AcoustIdApiKey { get; }
 
     public MusicEnhancerOptions(
         HashSet<string> releaseTypesToFilter,
@@ -78,11 +78,11 @@ public class MusicEnhancerOptions
         bool deleteFilesAfterUnmonitor,
         bool enableExplicitTagging,
         bool enableMetadataWriting,
-        string lastFmApiKey,
-        string deezerApiKey,
-        string discogsApiKey,
-        string discogsApiSecret,
-        string acoustIdApiKey)
+        string? lastFmApiKey,
+        string? deezerApiKey,
+        string? discogsApiKey,
+        string? discogsApiSecret,
+        string? acoustIdApiKey)
     {
         ReleaseTypesToFilter = releaseTypesToFilter ?? new HashSet<string>();
         VersionFilterAction = versionFilterAction;

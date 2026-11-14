@@ -24,17 +24,24 @@ MusicEnhancer/
 ### Requirements
 
 - .NET 8.0 SDK
-- Lidarr nightly build
-- Lidarr source code (for development)
+- Python 3 (to download the Lidarr reference assemblies)
+- Lidarr nightly build (for testing)
 
 ### Building
 
-1. Clone the Lidarr source code and place it in the Submodules folder
+1. Download the verified Lidarr reference assemblies:
+
+```bash
+python scripts/prepare-lidarr.py
+```
+
 2. Build the plugin:
 
 ```bash
 dotnet build src/MusicEnhancer/MusicEnhancer.csproj
 ```
+
+Alternatively, run `build.sh` (Linux/macOS) or `build.bat` (Windows), which performs both steps.
 
 ### Testing
 

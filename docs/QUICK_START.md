@@ -17,12 +17,7 @@ Get up and running with the Music Enhancer plugin in minutes.
    cd lidarr-plugin-musicenhancer
    ```
 
-2. Clone Lidarr source code:
-   ```bash
-   git clone https://github.com/Lidarr/Lidarr.git Submodules/Lidarr
-   ```
-
-3. Build the plugin:
+2. Build the plugin:
    ```bash
    # Windows
    build.bat
@@ -32,7 +27,9 @@ Get up and running with the Music Enhancer plugin in minutes.
    ./build.sh
    ```
 
-4. Copy the DLL to Lidarr's Plugins folder:
+   The build script downloads the verified Lidarr reference assemblies automatically.
+
+3. Copy the DLL to Lidarr's Plugins folder:
    ```bash
    # Windows
    copy src\MusicEnhancer\bin\Debug\net8.0\Lidarr.Plugin.MusicEnhancer.dll "C:\Path\To\Lidarr\Plugins\"
@@ -41,7 +38,7 @@ Get up and running with the Music Enhancer plugin in minutes.
    cp src/MusicEnhancer/bin/Debug/net8.0/Lidarr.Plugin.MusicEnhancer.dll /path/to/lidarr/Plugins/
    ```
 
-5. Restart Lidarr
+4. Restart Lidarr
 
 ### Option 2: Download Pre-built
 

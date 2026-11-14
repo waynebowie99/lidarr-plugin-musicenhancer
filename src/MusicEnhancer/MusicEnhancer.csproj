@@ -22,6 +22,8 @@
 		<EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
 		<!-- Disable NuGet audit to avoid vulnerability warnings -->
 		<NuGetAudit>false</NuGetAudit>
+		<!-- Use Lidarr's custom NuGet feed for TagLibSharp-Lidarr -->
+		<NuGetConfigFile>$(MSBuildProjectDirectory)\..\NuGet.config</NuGetConfigFile>
 	</PropertyGroup>
 
 	<ItemGroup>

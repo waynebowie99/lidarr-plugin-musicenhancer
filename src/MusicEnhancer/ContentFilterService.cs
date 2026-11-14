@@ -51,12 +51,26 @@ public class ContentFilterService : IContentFilterService
             throw new ArgumentNullException(nameof(options));
         }
 
+        var albumType = string.IsNullOrWhiteSpace(importedAlbum.AlbumType) ? "Album" : importedAlbum.AlbumType;
+
+        if (!options.ReleaseTypesToFilter.Contains(albumType))
+        {
+            _logger.Debug("MusicEnhancer: Skipping album '{AlbumTitle}' because release type '{AlbumType}' is not enabled for filtering", importedAlbum.Title, albumType);
+            return;
+        }
+
+        if (options.VersionFilterAction == VersionFilterAction.Skip)
+        {
+            _logger.Info("MusicEnhancer: Version filter action is 'Skip'; not checking album '{AlbumTitle}'", importedAlbum.Title);
+            return;
+        }
+
         _logger.Info("MusicEnhancer: Filtering content for artist '{ArtistName}', album '{AlbumTitle}'", artist.Name, importedAlbum.Title);
 
         try
         {
             // Only process albums that have been downloaded (have track files)
-            var tracks = _trackService.GetTracksByAlbum(importedAlbum.Id);
+            var tracks = _trackService.GetTracksByAlbum(importedAlbum.Id) ?? new List<Track>();
             var tracksWithFiles = tracks.Where(t => t.TrackFileId > 0).ToList();
 
             if (tracksWithFiles.Count == 0)
@@ -65,9 +79,13 @@ public class ContentFilterService : IContentFilterService
                 return;
             }
 
-            var tracksToDelete = new List<Track>();
+            var tracksInDurationRange = tracksWithFiles
+                .Where(t => t.Duration >= options.MinimumTrackDurationMs && t.Duration <= options.MaximumTrackDurationMs)
+                .ToList();
 
-            foreach (var track in tracksWithFiles)
+            var versionTracks = new List<Track>();
+
+            foreach (var track in tracksInDurationRange)
             {
                 var versionInfo = VersionMatcher.MatchVersion(track, options);
 
@@ -75,20 +93,28 @@ public class ContentFilterService : IContentFilterService
                 {
                     if (ShouldFilterVersion(versionInfo.VersionType, options))
                     {
-                        tracksToDelete.Add(track);
+                        versionTracks.Add(track);
                         _logger.Info("MusicEnhancer: Track '{TrackTitle}' detected as {VersionType} - {Reason}", track.Title, versionInfo.VersionType, versionInfo.Reason);
                     }
                 }
             }
 
-            if (tracksToDelete.Count > 0)
-            {
-                HandleCleanup(artist, importedAlbum, tracksWithFiles, tracksToDelete, options);
-            }
-            else
+            if (versionTracks.Count == 0)
             {
                 _logger.Info("MusicEnhancer: No unwanted tracks found in album '{AlbumTitle}'", importedAlbum.Title);
+                return;
             }
+
+            if (options.VersionFilterAction == VersionFilterAction.FlagOnly)
+            {
+                _logger.Info(
+                    "MusicEnhancer: Detected {Count} version track(s) in album '{AlbumTitle}'. Action is 'Flag for review', so no files will be deleted or unmonitored.",
+                    versionTracks.Count,
+                    importedAlbum.Title);
+                return;
+            }
+
+            HandleCleanup(importedAlbum, tracksWithFiles, versionTracks, options);
         }
         catch (Exception ex)
         {
@@ -110,13 +136,13 @@ public class ContentFilterService : IContentFilterService
         };
     }
 
-    private void HandleCleanup(Artist artist, Album album, List<Track> allTracks, List<Track> tracksToDelete, MusicEnhancerOptions options)
+    private void HandleCleanup(Album album, List<Track> allTracks, List<Track> versionTracks, MusicEnhancerOptions options)
     {
         // Calculate percentage of tracks that are unwanted
-        var unwantedPercentage = (double)tracksToDelete.Count / allTracks.Count * 100;
+        var unwantedPercentage = (double)versionTracks.Count / allTracks.Count * 100;
 
         _logger.Info("MusicEnhancer: Album '{AlbumTitle}' has {Total} tracks, {Unwanted} are unwanted ({Percentage}%)",
-            album.Title, allTracks.Count, tracksToDelete.Count, Math.Round(unwantedPercentage, 1));
+            album.Title, allTracks.Count, versionTracks.Count, Math.Round(unwantedPercentage, 1));
 
         // If more than 50% of tracks are unwanted, unmonitor the entire album
         if (unwantedPercentage > 50)
@@ -124,23 +150,34 @@ public class ContentFilterService : IContentFilterService
             _logger.Info("MusicEnhancer: Unmonitoring entire album '{AlbumTitle}' because {Percentage}% of tracks are unwanted",
                 album.Title, Math.Round(unwantedPercentage, 1));
 
-            // Delete all track files
-            foreach (var track in allTracks)
-            {
-                DeleteTrackFile(track, "MusicEnhancer: Album unmonitored - version filter");
-            }
-
-            // Unmonitor the album
             _albumService.SetAlbumMonitored(album.Id, false);
+
+            if (options.DeleteFilesAfterUnmonitor)
+            {
+                foreach (var track in allTracks)
+                {
+                    DeleteTrackFile(track, "MusicEnhancer: Album unmonitored - version filter");
+                }
+            }
+            else
+            {
+                _logger.Info("MusicEnhancer: 'Delete files after unmonitor' is disabled; keeping files for album '{AlbumTitle}'", album.Title);
+            }
         }
         else
         {
-            // Only delete the unwanted tracks
-            _logger.Info("MusicEnhancer: Deleting {Count} unwanted tracks from album '{AlbumTitle}'", tracksToDelete.Count, album.Title);
+            _logger.Info("MusicEnhancer: Album '{AlbumTitle}' contains mixed content; {Count} version track(s) detected", album.Title, versionTracks.Count);
 
-            foreach (var track in tracksToDelete)
+            if (options.DeleteFilesAfterUnmonitor)
             {
-                DeleteTrackFile(track, "MusicEnhancer: Version filter - unwanted track");
+                foreach (var track in versionTracks)
+                {
+                    DeleteTrackFile(track, "MusicEnhancer: Version filter - unwanted track");
+                }
+            }
+            else
+            {
+                _logger.Info("MusicEnhancer: 'Delete files after unmonitor' is disabled; keeping version track files in album '{AlbumTitle}'", album.Title);
             }
         }
 

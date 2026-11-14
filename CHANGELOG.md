@@ -5,6 +5,18 @@ All notable changes to the Lidarr Music Enhancer plugin will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1.4] - 2026-11-14
+
+### Added
+- Connect provider so the plugin appears under **Settings → Connect** with its full settings UI
+- Content filtering now runs after an album import
+- Release-type, duration range, and "delete files after unmonitor" settings are now honored
+
+### Fixed
+- "Flag for review" action no longer deletes or unmonitors files
+- "Skip" action now skips processing instead of deleting
+- Files are only deleted when "Delete files after unmonitor" is enabled
+
 ## [1.0.1.3] - 2026-11-14
 
 ### Fixed

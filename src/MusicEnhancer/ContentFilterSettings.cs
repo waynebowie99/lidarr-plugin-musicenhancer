@@ -46,6 +46,8 @@ public class MusicEnhancerSettings : IProviderConfig
         MinimumTrackDurationMs = 30000; // 30 seconds minimum
         MaximumTrackDurationMs = 600000; // 10 minutes maximum
         DeleteFilesAfterUnmonitor = true; // Default to delete files
+        EnableExplicitTagging = true;
+        EnableMetadataWriting = true;
     }
 
     [FieldDefinition(0, Label = "Version filter action", Type = FieldType.Select, SelectOptions = typeof(VersionFilterAction), HelpText = "Action to take when a version is detected. Defaults to flag for review.")]

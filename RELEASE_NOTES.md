@@ -1,6 +1,17 @@
-# Music Enhancer Plugin v1.0.1.3
+# Music Enhancer Plugin v1.0.1.4
 
 ## What's New
+
+### Connect Provider
+- The plugin now appears under **Settings → Connect** as **Music Enhancer**
+- Add it like any other connection to access all plugin settings
+- Content filtering runs automatically after an album import
+
+### Safer Filtering
+- **Flag for review** (default) only logs detected versions and never deletes files
+- **Skip** leaves the album untouched
+- Files are deleted only when **Delete files after unmonitor** is enabled
+- Release type and track duration settings are now applied
 
 ### Compatibility Fix
 - Fixed the plugin load failure on Lidarr 3.1.x hosts

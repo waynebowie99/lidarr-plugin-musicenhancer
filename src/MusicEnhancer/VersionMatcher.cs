@@ -45,7 +45,7 @@ public static class VersionMatcher
             {
                 if (title.Contains(pattern))
                 {
-                    return new VersionMatchResult(track.Title, null, kvp.Key, 0.95, $"Detected {kvp.Key} version based on title pattern");
+                    return new VersionMatchResult(track.Title, default, kvp.Key, 0.95, $"Detected {kvp.Key} version based on title pattern");
                 }
             }
         }

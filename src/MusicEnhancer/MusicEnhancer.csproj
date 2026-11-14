@@ -20,6 +20,8 @@
 		<!-- Disable analyzers to avoid stylecop.json dependency -->
 		<EnableAnalyzers>false</EnableAnalyzers>
 		<EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+		<!-- Disable NuGet audit to avoid vulnerability warnings -->
+		<NuGetAudit>false</NuGetAudit>
 	</PropertyGroup>
 
 	<ItemGroup>

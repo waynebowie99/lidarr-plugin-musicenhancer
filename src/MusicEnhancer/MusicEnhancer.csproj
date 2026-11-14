@@ -29,7 +29,7 @@
 			scripts/prepare-lidarr.py instead of building the Lidarr source tree.
 			Keep this version in sync with prepare-lidarr.py.
 		-->
-		<LidarrVersion>3.2.1.5196</LidarrVersion>
+		<LidarrVersion>3.1.6.5079</LidarrVersion>
 		<LidarrReferenceDir>$(MSBuildThisFileDirectory)..\..\_temp\lidarr\$(LidarrVersion)\</LidarrReferenceDir>
 	</PropertyGroup>
 

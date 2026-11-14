@@ -12,15 +12,18 @@ import zipfile
 from pathlib import Path, PurePosixPath
 
 
-VERSION = "3.2.1.5196"
+# Build against the oldest supported Lidarr release so the plugin also loads on
+# newer hosts (.NET rolls assembly references forward, but not backward).
+VERSION = "3.1.6.5079"
+CHANNEL = "master"
 # GitHub release asset digests, not checksums fetched alongside the download.
-# https://github.com/Lidarr/Lidarr/releases/tag/v3.2.1.5196
+# https://github.com/Lidarr/Lidarr/releases/tag/v3.1.6.5079
 SHA256 = {
-    "linux-core-x64": "009ce48af3faab34578dd1fcd3945cae7db42f5449c7999e2ffd20d60a22ec06",
-    "linux-core-arm64": "f42596fe026730fdd1c67bdded3bc5394e8f89fdef70db5fc52b71267d6a2dd8",
-    "osx-core-x64": "9e9a5fae390301897a5d87bbdc6f55506d6684bafc28dc7c297b4c46d3dc9bb2",
-    "osx-core-arm64": "1291678c58e0210f2a4290d95a3130318821d12f0136754258a5d82b23120ce4",
-    "windows-core-x64": "be4cd5452786c726c7e4f4214d565109a3d1c76ad93a2d50bb2a340bb9a50a9f",
+    "linux-core-x64": "fed16c58f5de797be955e830a3a93994f020c1d8d60f5a6cb061d7647d45b8bc",
+    "linux-core-arm64": "52cbf5468cc3ee11149891e5a43333ebfd62591989a3226795067736bf93fb97",
+    "osx-core-x64": "0ef07a989f24f8362c84289b19d78878e3d898b9ed870e5b17e0d5dbba75f574",
+    "osx-core-arm64": "50a866bea62e97a78666b94f53c5b115e508faa415329e7e1e974e9be2ba320f",
+    "windows-core-x64": "449a74d839436381d3b1d0bb094b2d807e0309b844a2fbd2a2e82ccc26d05272",
 }
 REQUIRED = {
     "Lidarr.Core.dll", "Lidarr.Common.dll", "Lidarr.Http.dll", "Lidarr.Api.V1.dll",
@@ -82,7 +85,7 @@ def main():
     cache = root / "_temp" / "lidarr"
     cache.mkdir(parents=True, exist_ok=True)
     suffix = ".zip" if rid.startswith("windows-") else ".tar.gz"
-    name = f"Lidarr.develop.{VERSION}.{rid}{suffix}"
+    name = f"Lidarr.{CHANNEL}.{VERSION}.{rid}{suffix}"
     archive = cache / name
     if not archive.exists():
         url = f"https://github.com/Lidarr/Lidarr/releases/download/v{VERSION}/{name}"

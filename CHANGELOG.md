@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Build against the verified prebuilt Lidarr release assemblies instead of the Lidarr source tree
+- Target Lidarr `3.1.6.5079` references so the plugin also loads on newer Lidarr 3.1.x/3.2.x hosts
 - Removed the Lidarr git submodule; `scripts/prepare-lidarr.py` downloads the reference assemblies
 - Updated build scripts, CI workflow, and documentation for the new build process
 

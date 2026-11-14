@@ -4,6 +4,7 @@
 
 ### Build and Packaging
 - Build against the verified prebuilt Lidarr release assemblies
+- Target Lidarr `3.1.6.5079` references so the plugin loads on 3.1.x and newer 3.2.x hosts
 - Fixed StyleCop `SA1200` build failures
 - Removed the Lidarr git submodule; the build script downloads reference assemblies automatically
 - Clean build with zero warnings

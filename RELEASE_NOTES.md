@@ -1,6 +1,14 @@
-# Music Enhancer Plugin v1.0.0.0
+# Music Enhancer Plugin v1.0.1.2
 
 ## What's New
+
+### Build and Packaging
+- Build against the verified prebuilt Lidarr release assemblies
+- Fixed StyleCop `SA1200` build failures
+- Removed the Lidarr git submodule; the build script downloads reference assemblies automatically
+- Clean build with zero warnings
+
+## Previous Release: v1.0.0.0
 
 ### Version Filtering
 - Detect and filter remixes, edits, live versions, acoustic versions, and demos

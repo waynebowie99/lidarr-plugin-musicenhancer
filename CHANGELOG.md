@@ -5,6 +5,17 @@ All notable changes to the Lidarr Music Enhancer plugin will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1.2] - 2026-11-14
+
+### Fixed
+- Build failures caused by StyleCop `SA1200` errors when building Lidarr from source
+- Nullable reference warnings in plugin settings and version matching
+
+### Changed
+- Build against the verified prebuilt Lidarr release assemblies instead of the Lidarr source tree
+- Removed the Lidarr git submodule; `scripts/prepare-lidarr.py` downloads the reference assemblies
+- Updated build scripts, CI workflow, and documentation for the new build process
+
 ## [1.0.0.0] - 2026-11-13
 
 ### Added

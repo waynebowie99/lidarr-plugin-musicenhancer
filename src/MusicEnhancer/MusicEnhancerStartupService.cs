@@ -17,6 +17,7 @@ public class MusicEnhancerStartupService : IHandleAsync<ApplicationStartedEvent>
     private readonly IArtistService _artistService;
     private readonly IAlbumService _albumService;
     private readonly IContentFilterService _contentFilterService;
+    private readonly IMetadataEnhancerService _metadataEnhancerService;
     private readonly INotificationFactory _notificationFactory;
     private readonly Logger _logger;
 
@@ -24,12 +25,14 @@ public class MusicEnhancerStartupService : IHandleAsync<ApplicationStartedEvent>
         IArtistService artistService,
         IAlbumService albumService,
         IContentFilterService contentFilterService,
+        IMetadataEnhancerService metadataEnhancerService,
         INotificationFactory notificationFactory,
         Logger logger)
     {
         _artistService = artistService ?? throw new ArgumentNullException(nameof(artistService));
         _albumService = albumService ?? throw new ArgumentNullException(nameof(albumService));
         _contentFilterService = contentFilterService ?? throw new ArgumentNullException(nameof(contentFilterService));
+        _metadataEnhancerService = metadataEnhancerService ?? throw new ArgumentNullException(nameof(metadataEnhancerService));
         _notificationFactory = notificationFactory ?? throw new ArgumentNullException(nameof(notificationFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -71,6 +74,7 @@ public class MusicEnhancerStartupService : IHandleAsync<ApplicationStartedEvent>
                 foreach (var album in _albumService.GetAlbumsByArtist(artist.Id).Where(a => a.Monitored))
                 {
                     _contentFilterService.FilterContentForArtist(artist, album, options);
+                    _metadataEnhancerService.EnhanceMetadataForArtist(artist, album, options);
                     albumsScanned++;
                 }
             }

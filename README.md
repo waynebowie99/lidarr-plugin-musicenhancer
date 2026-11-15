@@ -2,9 +2,7 @@
 
 A Lidarr plugin that automatically identifies and filters remixes, edits, live versions, acoustic versions, and other alternate versions of tracks. Keep only the clean/original versions you want while unmonitoring versions you don't care about.
 
-Also includes **metadata enhancement** for explicit tag support - automatically detects and tags explicit content for Symfonium/Jellyfin compatibility.
-
-Also includes **metadata enrichment** from multiple sources - Last.fm, Deezer, Discogs, AcoustID, and MusicBrainz for comprehensive metadata coverage.
+Also includes opt-in **explicit and clean advisory tagging**, using Lidarr's track associations and optionally MusicBrainz and Deezer. No API key is required.
 
 ## Features
 
@@ -16,8 +14,7 @@ Also includes **metadata enrichment** from multiple sources - Last.fm, Deezer, D
 - **Commentary Detection**: Identify commentary tracks (`Commentary`, `Album Commentary`, `Track Commentary`, etc.)
 - **Version Filtering**: Detect version markers like "Version", "Alternative Version", etc.
 - **Track-Level Unmonitoring**: Unmonitor individual tracks within an album (not just entire albums)
-- **Explicit Tag Support**: Automatically detect and tag explicit content for Symfonium/Jellyfin compatibility (MP4, FLAC, MP3, OGG, Opus)
-- **Metadata Enrichment**: Enrich metadata from Last.fm, Deezer, Discogs, AcoustID, and MusicBrainz
+- **Advisory Tag Support**: Add missing explicit/clean ratings to MP4/M4A, FLAC, MP3, OGG and Opus files
 - **Configurable**: Customize which release types to filter and which version types to detect
 - **Flexible Actions**: Choose to flag for review, unmonitor, or skip detected versions
 
@@ -73,7 +70,21 @@ After installation, add a Music Enhancer connection:
 | **Minimum track duration (ms)** | 30000 | Minimum track duration in milliseconds (30 seconds) |
 | **Maximum track duration (ms)** | 600000 | Maximum track duration in milliseconds (10 minutes) |
 | **Delete files after unmonitor** | On | Delete media files after unmonitoring a version. Defaults to true (delete files). |
-| **Scan library on startup** | Off | Run the version filter over existing monitored albums when Lidarr starts. Can take a while on large libraries. |
+| **Enable metadata processing** | Off | Allow changes to audio file tags. Explicit opt-in is required even for existing connections. |
+| **Enable explicit tagging** | On | Enable explicit/clean advisory tagging when metadata processing and writing are also enabled. |
+| **Enable metadata writing** | On | Allow writing advisory tags when metadata processing and explicit tagging are enabled. |
+| **Look up explicit status online** | Off | Use MusicBrainz and Deezer for missing ratings without an API key. |
+| **Scan library on startup** | Off | Run the version filter and enabled metadata tagging over existing monitored albums when Lidarr starts. |
+
+### Explicit and Clean Metadata
+
+1. Back up your music files before enabling writes. In **Settings → Connect → Music Enhancer**, check **Enable metadata processing**, **Enable explicit tagging**, and **Enable metadata writing**.
+2. To identify more tracks, check **Look up explicit status online**. This sends Lidarr's MusicBrainz recording IDs to MusicBrainz, and ISRCs to Deezer when needed. It requires no API key. MusicBrainz requests are rate limited, so a large scan can take a long time.
+3. Check **On Release Import** to process newly imported releases, and optionally **Scan library on startup** to process existing monitored albums after a restart. Startup filtering uses the configured version filter action independently; review deletion settings first.
+
+Lidarr's per-track `Explicit` flag, unambiguous clean-title markers and exact MusicBrainz recording disambiguations can provide a rating. When an online lookup has no such MusicBrainz rating, MusicBrainz ISRCs are checked against Deezer's public catalog, with duration and conflicting-result checks. A Deezer "not explicit" result is **not** treated as proof of a censored clean edit. Missing or ambiguous data is left untouched; Lidarr's `false` flag can also mean unknown. Some versions of Lidarr do not populate the explicit flag at all.
+
+Existing advisory tags are never overwritten. Shared files mapped to multiple tracks and unsupported formats are skipped. The plugin writes `ITUNESADVISORY=1` (explicit) or `2` (clean) in ID3v2 or Vorbis comments, and `rtng=4` (explicit) or `2` (clean) in MP4. Symfonium and Jellyfin behavior can depend on their provider and scan settings; re-scan the library after tagging. The plugin does not currently implement Last.fm, Discogs or AcoustID enrichment; their existing settings are reserved and unused.
 
 ## How It Works
 

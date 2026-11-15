@@ -32,6 +32,9 @@ jobs:
     - name: Build plugin
       run: dotnet build src/MusicEnhancer/MusicEnhancer.csproj -c Release
 
+    - name: Run metadata tests
+      run: dotnet run --project tests/MusicEnhancer.Tests/MusicEnhancer.Tests.csproj -c Release
+
     - name: Upload plugin package
       uses: actions/upload-artifact@v4
       with:

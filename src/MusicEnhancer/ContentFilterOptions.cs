@@ -60,6 +60,8 @@ public class MusicEnhancerOptions
     public bool DeleteFilesAfterUnmonitor { get; }
     public bool EnableExplicitTagging { get; }
     public bool EnableMetadataWriting { get; }
+    public bool EnableOnlineExplicitLookup { get; }
+    public bool EnableMetadataProcessing { get; }
     public bool KeepCleanVersions { get; }
     public string? LastFmApiKey { get; }
     public string? DeezerApiKey { get; }
@@ -88,7 +90,9 @@ public class MusicEnhancerOptions
         string? deezerApiKey,
         string? discogsApiKey,
         string? discogsApiSecret,
-        string? acoustIdApiKey)
+        string? acoustIdApiKey,
+        bool enableOnlineExplicitLookup = false,
+        bool enableMetadataProcessing = false)
     {
         ReleaseTypesToFilter = releaseTypesToFilter ?? new HashSet<string>();
         VersionFilterAction = versionFilterAction;
@@ -105,6 +109,8 @@ public class MusicEnhancerOptions
         DeleteFilesAfterUnmonitor = deleteFilesAfterUnmonitor;
         EnableExplicitTagging = enableExplicitTagging;
         EnableMetadataWriting = enableMetadataWriting;
+        EnableOnlineExplicitLookup = enableOnlineExplicitLookup;
+        EnableMetadataProcessing = enableMetadataProcessing;
         KeepCleanVersions = keepCleanVersions;
         LastFmApiKey = lastFmApiKey;
         DeezerApiKey = deezerApiKey;

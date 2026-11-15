@@ -1,6 +1,14 @@
-# Music Enhancer Plugin v1.0.1.7
+# Music Enhancer Plugin v1.0.1.8
 
 ## What's New
+
+### Opt-in Explicit and Clean Tagging
+- Tag missing advisory ratings using Lidarr's track and file associations.
+- Optionally look up MusicBrainz recording disambiguation and Deezer ISRC ratings without an API key.
+- Enable **metadata processing**, **explicit tagging**, and **metadata writing**, then optionally **Look up explicit status online** in the connection. Metadata processing and online lookups are off by default.
+- Existing ratings, shared files, and unknown or ambiguous tracks are left unchanged. Back up files before enabling writes.
+- Startup scans now perform enabled metadata processing; imports require **On Release Import**.
+- Last.fm, Discogs, and AcoustID enrichment is not implemented.
 
 ### Commentary Filtering
 - Commentary tracks are now detected and filtered

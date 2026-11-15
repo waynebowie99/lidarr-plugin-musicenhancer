@@ -89,25 +89,25 @@ public class MusicEnhancerSettings : IProviderConfig
     [FieldDefinition(11, Label = "Delete files after unmonitor", Type = FieldType.Checkbox, HelpText = "Delete media files after unmonitoring a version. Defaults to true (delete files).")]
     public bool DeleteFilesAfterUnmonitor { get; set; }
 
-    [FieldDefinition(12, Label = "Enable explicit tagging", Type = FieldType.Checkbox, HelpText = "Automatically detect and tag explicit content in track metadata. Required for Symfonium/Jellyfin compatibility. On by default.")]
+    [FieldDefinition(12, Label = "Enable explicit tagging", Type = FieldType.Checkbox, HelpText = "Tag tracks with known explicit or clean ratings. Existing advisory tags are preserved.")]
     public bool EnableExplicitTagging { get; set; }
 
     [FieldDefinition(13, Label = "Enable metadata writing", Type = FieldType.Checkbox, HelpText = "Write metadata tags to files. Required for explicit tagging to work. On by default.")]
     public bool EnableMetadataWriting { get; set; }
 
-    [FieldDefinition(14, Label = "Last.fm API Key", Type = FieldType.Textbox, HelpText = "API key for Last.fm metadata enrichment (play counts, ratings, tags, genres). Optional but recommended.")]
+    [FieldDefinition(14, Label = "Last.fm API Key", Type = FieldType.Textbox, HelpText = "Reserved for future use; currently unused.")]
     public string? LastFmApiKey { get; set; }
 
-    [FieldDefinition(15, Label = "Deezer API Key", Type = FieldType.Textbox, HelpText = "API key for Deezer metadata enrichment (duration, preview, album info). Optional but recommended.")]
+    [FieldDefinition(15, Label = "Deezer API Key", Type = FieldType.Textbox, HelpText = "Currently unused; the optional explicit lookup does not require an API key.")]
     public string? DeezerApiKey { get; set; }
 
-    [FieldDefinition(16, Label = "Discogs API Key", Type = FieldType.Textbox, HelpText = "API key for Discogs metadata enrichment (release date, label, catalog number). Optional but recommended.")]
+    [FieldDefinition(16, Label = "Discogs API Key", Type = FieldType.Textbox, HelpText = "Reserved for future use; currently unused.")]
     public string? DiscogsApiKey { get; set; }
 
-    [FieldDefinition(17, Label = "Discogs API Secret", Type = FieldType.Password, HelpText = "API secret for Discogs authentication. Optional but recommended.")]
+    [FieldDefinition(17, Label = "Discogs API Secret", Type = FieldType.Password, HelpText = "Reserved for future use; currently unused.")]
     public string? DiscogsApiSecret { get; set; }
 
-    [FieldDefinition(18, Label = "AcoustID API Key", Type = FieldType.Textbox, HelpText = "API key for AcoustID audio fingerprinting (MusicBrainz Recording ID, duration accuracy). Optional but recommended.")]
+    [FieldDefinition(18, Label = "AcoustID API Key", Type = FieldType.Textbox, HelpText = "Reserved for future use; currently unused.")]
     public string? AcoustIdApiKey { get; set; }
 
     [FieldDefinition(19, Label = "Keep clean versions", Type = FieldType.Checkbox, HelpText = "Keep tracks marked Clean, Clean Version, Clean Edit, etc. instead of filtering them as edits or versions. On by default.")]
@@ -116,8 +116,14 @@ public class MusicEnhancerSettings : IProviderConfig
     [FieldDefinition(20, Label = "Enable commentary filtering", Type = FieldType.Checkbox, HelpText = "Filter commentary tracks (Commentary, Album Commentary, Track Commentary, etc.). On by default.")]
     public bool EnableCommentaryFiltering { get; set; }
 
-    [FieldDefinition(21, Label = "Scan library on startup", Type = FieldType.Checkbox, HelpText = "Run the version filter over existing monitored albums every time Lidarr starts. Can take a while on large libraries. Off by default.")]
+    [FieldDefinition(21, Label = "Scan library on startup", Type = FieldType.Checkbox, HelpText = "Run filtering and enabled metadata tagging over existing monitored albums on startup. May take a long time. Off by default.")]
     public bool ScanLibraryOnStartup { get; set; }
+
+    [FieldDefinition(22, Label = "Look up explicit status online", Type = FieldType.Checkbox, HelpText = "Use MusicBrainz recording IDs and Deezer to look up explicit status without an API key. Sends recording identifiers to these services. Off by default.")]
+    public bool EnableOnlineExplicitLookup { get; set; }
+
+    [FieldDefinition(23, Label = "Enable metadata processing", Type = FieldType.Checkbox, HelpText = "Allow Music Enhancer to change audio file tags. Off by default, including for existing connections. Back up your files before enabling.")]
+    public bool EnableMetadataProcessing { get; set; }
 
     /// <summary>
     /// Converts settings to a validated MusicEnhancerOptions snapshot.
@@ -146,7 +152,9 @@ public class MusicEnhancerSettings : IProviderConfig
             DeezerApiKey,
             DiscogsApiKey,
             DiscogsApiSecret,
-            AcoustIdApiKey);
+            AcoustIdApiKey,
+            EnableOnlineExplicitLookup,
+            EnableMetadataProcessing);
     }
 
     private static HashSet<string> ParseReleaseTypes(string? releaseTypesString)

@@ -95,7 +95,7 @@ public class MusicEnhancerSettings : IProviderConfig
     [FieldDefinition(13, Label = "Enable metadata writing", Type = FieldType.Checkbox, HelpText = "Write metadata tags to files. Required for explicit tagging to work. On by default.")]
     public bool EnableMetadataWriting { get; set; }
 
-    [FieldDefinition(14, Label = "Last.fm API Key", Type = FieldType.Textbox, HelpText = "Reserved for future use; currently unused.")]
+    [FieldDefinition(14, Label = "Last.fm API Key", Type = FieldType.Textbox, HelpText = "Optional Last.fm key for mood lookup. No key is required for the other lookups.")]
     public string? LastFmApiKey { get; set; }
 
     [FieldDefinition(15, Label = "Deezer API Key", Type = FieldType.Textbox, HelpText = "Currently unused; the optional explicit lookup does not require an API key.")]
@@ -124,6 +124,21 @@ public class MusicEnhancerSettings : IProviderConfig
 
     [FieldDefinition(23, Label = "Enable metadata processing", Type = FieldType.Checkbox, HelpText = "Allow Music Enhancer to change audio file tags. Off by default, including for existing connections. Back up your files before enabling.")]
     public bool EnableMetadataProcessing { get; set; }
+
+    [FieldDefinition(24, Label = "Fill missing library tags", Type = FieldType.Checkbox, HelpText = "Fill missing standard tags from Lidarr's track, release and artist metadata. Existing values are preserved. Off by default.")]
+    public bool EnableLibraryTagging { get; set; }
+
+    [FieldDefinition(25, Label = "Look up lyrics online", Type = FieldType.Checkbox, HelpText = "Look up matching lyrics on LRCLIB and add a missing .lrc sidecar. Sends artist, album and track details to LRCLIB. Off by default.")]
+    public bool EnableLyricsLookup { get; set; }
+
+    [FieldDefinition(26, Label = "Look up BPM online", Type = FieldType.Checkbox, HelpText = "Fill missing BPM using an ISRC from the audio file or MusicBrainz, and Deezer. Requires Fill missing library tags. Off by default.")]
+    public bool EnableBpmLookup { get; set; }
+
+    [FieldDefinition(27, Label = "Look up composers online", Type = FieldType.Checkbox, HelpText = "Use MusicBrainz work relationships to fill missing composer credits. Requires Fill missing library tags. Off by default.")]
+    public bool EnableComposerLookup { get; set; }
+
+    [FieldDefinition(28, Label = "Look up mood online", Type = FieldType.Checkbox, HelpText = "Fill a missing mood from recognized Last.fm community mood tags using the recording ID. Requires a Last.fm API key and Fill missing library tags. Off by default.")]
+    public bool EnableMoodLookup { get; set; }
 
     /// <summary>
     /// Converts settings to a validated MusicEnhancerOptions snapshot.
@@ -154,7 +169,12 @@ public class MusicEnhancerSettings : IProviderConfig
             DiscogsApiSecret,
             AcoustIdApiKey,
             EnableOnlineExplicitLookup,
-            EnableMetadataProcessing);
+            EnableMetadataProcessing,
+            EnableLibraryTagging,
+            EnableLyricsLookup,
+            EnableBpmLookup,
+            EnableComposerLookup,
+            EnableMoodLookup);
     }
 
     private static HashSet<string> ParseReleaseTypes(string? releaseTypesString)

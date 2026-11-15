@@ -2,7 +2,7 @@
 
 A Lidarr plugin that automatically identifies and filters remixes, edits, live versions, acoustic versions, and other alternate versions of tracks. Keep only the clean/original versions you want while unmonitoring versions you don't care about.
 
-Also includes opt-in **explicit and clean advisory tagging**, using Lidarr's track associations and optionally MusicBrainz and Deezer. No API key is required.
+Also includes opt-in **metadata enhancement** and explicit/clean advisory tagging, using Lidarr's track associations and optional online lookups.
 
 ## Features
 
@@ -15,6 +15,7 @@ Also includes opt-in **explicit and clean advisory tagging**, using Lidarr's tra
 - **Version Filtering**: Detect version markers like "Version", "Alternative Version", etc.
 - **Track-Level Unmonitoring**: Unmonitor individual tracks within an album (not just entire albums)
 - **Advisory Tag Support**: Add missing explicit/clean ratings to MP4/M4A, FLAC, MP3, OGG and Opus files
+- **Missing Metadata**: Fill supported missing fields from Lidarr; optionally look up composers, BPM, mood and lyrics
 - **Configurable**: Customize which release types to filter and which version types to detect
 - **Flexible Actions**: Choose to flag for review, unmonitor, or skip detected versions
 
@@ -74,6 +75,11 @@ After installation, add a Music Enhancer connection:
 | **Enable explicit tagging** | On | Enable explicit/clean advisory tagging when metadata processing and writing are also enabled. |
 | **Enable metadata writing** | On | Allow writing advisory tags when metadata processing and explicit tagging are enabled. |
 | **Look up explicit status online** | Off | Use MusicBrainz and Deezer for missing ratings without an API key. |
+| **Fill missing library tags** | Off | Fill missing standard audio tags from Lidarr; preserve existing fields. |
+| **Look up BPM online** | Off | Use a file ISRC or MusicBrainz recording ID and Deezer for BPM; requires library tagging. |
+| **Look up composers online** | Off | Use MusicBrainz work composer credits; requires library tagging. |
+| **Look up mood online** | Off | Use a small set of recognized Last.fm mood tags; requires library tagging and a Last.fm API key. |
+| **Look up lyrics online** | Off | Fetch matching LRCLIB lyrics and create a missing `.lrc` sidecar. |
 | **Scan library on startup** | Off | Run the version filter and enabled metadata tagging over existing monitored albums when Lidarr starts. |
 
 ### Explicit and Clean Metadata
@@ -84,7 +90,21 @@ After installation, add a Music Enhancer connection:
 
 Lidarr's per-track `Explicit` flag, unambiguous clean-title markers and exact MusicBrainz recording disambiguations can provide a rating. When an online lookup has no such MusicBrainz rating, MusicBrainz ISRCs are checked against Deezer's public catalog, with duration and conflicting-result checks. A Deezer "not explicit" result is **not** treated as proof of a censored clean edit. Missing or ambiguous data is left untouched; Lidarr's `false` flag can also mean unknown. Some versions of Lidarr do not populate the explicit flag at all.
 
-Existing advisory tags are never overwritten. Shared files mapped to multiple tracks and unsupported formats are skipped. The plugin writes `ITUNESADVISORY=1` (explicit) or `2` (clean) in ID3v2 or Vorbis comments, and `rtng=4` (explicit) or `2` (clean) in MP4. Symfonium and Jellyfin behavior can depend on their provider and scan settings; re-scan the library after tagging. The plugin does not currently implement Last.fm, Discogs or AcoustID enrichment; their existing settings are reserved and unused.
+Existing advisory tags are never overwritten. Shared files mapped to multiple tracks and unsupported formats are skipped. The plugin writes `ITUNESADVISORY=1` (explicit) or `2` (clean) in ID3v2 or Vorbis comments, and `rtng=4` (explicit) or `2` (clean) in MP4.
+
+### Additional Metadata and Jellyfin
+
+**Enable metadata processing** and **Enable metadata writing** are required for all metadata changes. Enable **Fill missing library tags** to copy missing title, artist, album artist, album, genre, track/disc numbers, release year, label and available MusicBrainz identifiers and release type/status from Lidarr. Existing values are not overwritten. Lidarr's own audio-tag writer may also be configured separately; this plugin does not force it or scrub tags.
+
+Optional lookups are off by default:
+- **BPM**: checks Deezer by a file ISRC or a single ISRC from MusicBrainz; missing, ambiguous or mismatched recordings are skipped. No API key.
+- **Composer**: MusicBrainz recording-to-work relationships and explicit composer credits. No API key. Generic writer or lyricist credits are not assumed to be composers.
+- **Mood**: a small whitelist of recognizable Last.fm community mood tags using the track's MusicBrainz recording ID; requires a Last.fm API key. Community tags are subjective and may be absent. Existing mood values are preserved.
+- **Lyrics**: LRCLIB lookup by track artist, album, title and duration. Exact case-insensitive matches only; missing or ambiguous matches are skipped. Creates a new `.lrc` sidecar, preferring synced lyrics when available. Existing sidecars and embedded lyrics are preserved. No API key.
+
+Online lookups send the relevant identifiers or track information to their respective services. Enabling them can make library scans much slower. Discogs and AcoustID settings are currently unused. Ratings, favorites and other personal fields are never generated or changed.
+
+After changes, refresh the Jellyfin music library and sync the provider in Symfonium. Symfonium's [provider feature matrix](https://docs.symfonium.app/wiki/providers/supported-features-by-media-providers/) lists Jellyfin support for multiple artists and genres, but not composers, track BPM, album mood or style; writing those fields does not make them appear through the Jellyfin provider. Lyrics and advisory display depend on Jellyfin and client support. A Symfonium file provider such as SMB can read additional file tags, but is a separate library source. For file providers, partially populated MusicBrainz IDs can split albums; review Symfonium's parser settings if needed.
 
 ## How It Works
 

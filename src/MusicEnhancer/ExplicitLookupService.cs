@@ -13,6 +13,7 @@ namespace NzbDrone.Core.Plugins;
 public interface IExplicitLookupService
 {
     AdvisoryRating? Lookup(Track track);
+    string? LookupSingleIsrc(Track track);
 }
 
 public enum AdvisoryRating { Explicit = 1, Clean = 2 }
@@ -25,8 +26,8 @@ public class ExplicitLookupService : IExplicitLookupService
 {
     private static readonly HttpClient Client = CreateClient();
     private static readonly object RequestLock = new();
-    private static DateTime _nextMusicBrainzRequest = DateTime.MinValue;
     private readonly Dictionary<string, AdvisoryRating?> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string?> _isrcCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly HttpClient _client;
     private readonly Logger _logger;
     private DateTime _retryAfter = DateTime.MinValue;
@@ -40,6 +41,44 @@ public class ExplicitLookupService : IExplicitLookupService
     internal ExplicitLookupService(Logger logger, HttpClient client) : this(logger)
     {
         _client = client;
+    }
+
+    public string? LookupSingleIsrc(Track track)
+    {
+        if (!Guid.TryParse(track.ForeignRecordingId, out var recordingId) || track.Duration <= 0) return null;
+        var key = $"{recordingId:D}:{track.Duration}";
+        lock (RequestLock)
+        {
+            if (_isrcCache.TryGetValue(key, out var cached)) return cached;
+            if (DateTime.UtcNow < _retryAfter) return null;
+            try
+            {
+                WaitForMusicBrainz();
+                using var recording = GetJson($"https://musicbrainz.org/ws/2/recording/{recordingId:D}?inc=isrcs&fmt=json");
+                var root = recording.RootElement;
+                if (!root.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String ||
+                    !Guid.TryParse(id.GetString(), out var actualId) || actualId != recordingId ||
+                    !root.TryGetProperty("length", out var length) || !length.TryGetInt32(out var lengthMs) ||
+                    lengthMs <= 0 || Math.Abs((long)lengthMs - track.Duration) > 5000 ||
+                    !root.TryGetProperty("isrcs", out var isrcs) || isrcs.ValueKind != JsonValueKind.Array) return null;
+
+                var codes = isrcs.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String)
+                    .Select(x => x.GetString() ?? string.Empty).Where(x => Regex.IsMatch(x, "^[A-Za-z0-9]{12}$"))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                return _isrcCache[key] = codes.Count == 1 ? codes[0] : null;
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
+            {
+                _logger.Debug(ex, "MusicEnhancer: ISRC lookup failed for recording {0}", recordingId);
+                _retryAfter = DateTime.UtcNow.AddMinutes(2);
+                return null;
+            }
+        }
+    }
+
+    private static void WaitForMusicBrainz()
+    {
+        MusicBrainzThrottle.Wait();
     }
 
     public AdvisoryRating? Lookup(Track track)
@@ -65,13 +104,7 @@ public class ExplicitLookupService : IExplicitLookupService
 
             try
             {
-                var wait = _nextMusicBrainzRequest - DateTime.UtcNow;
-                if (wait > TimeSpan.Zero)
-                {
-                    Thread.Sleep(wait);
-                }
-
-                _nextMusicBrainzRequest = DateTime.UtcNow.AddMilliseconds(1100);
+                WaitForMusicBrainz();
                 using var recording = GetJson($"https://musicbrainz.org/ws/2/recording/{recordingId:D}?inc=isrcs&fmt=json");
                 var root = recording.RootElement;
                 if (!root.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String ||

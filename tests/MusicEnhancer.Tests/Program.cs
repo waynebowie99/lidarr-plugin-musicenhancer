@@ -51,6 +51,45 @@ try
     }
     Check(AdvisoryTagWriter.HasRating(existingPath) && !AdvisoryTagWriter.WriteIfMissing(existingPath, 1), "existing lower-case explicit field preserved");
 
+    foreach (var ext in new[] { "mp3", "flac", "ogg", "opus", "m4a" })
+    {
+        var path = CopyFixture(ext);
+        var fixtureArtist = new Artist { Name = "Album Artist", ForeignArtistId = "a0c9d75c-841e-4e8d-91d4-e20debfbc810" };
+        var fixtureAlbum = new Album { Title = "Album Name", Genres = new List<string> { "Rock", "Pop" } };
+        var fixtureTrack = new Track { Title = "Do not overwrite", MediumNumber = 2, AbsoluteTrackNumber = 4 };
+        fixtureTrack.ArtistMetadata = new ArtistMetadata { Name = "Other Artist", ForeignArtistId = "b0c9d75c-841e-4e8d-91d4-e20debfbc810" };
+        fixtureTrack.AlbumRelease = new AlbumRelease { ReleaseDate = new DateTime(2001, 1, 1), Label = new List<string> { "A Label" } };
+        Check(LibraryMetadataWriter.WriteIfMissing(path, fixtureArtist, fixtureAlbum, fixtureTrack, 120, new[] { "Composer Name" }, new[] { "happy", "uplifting" }), $"{ext} library tags written");
+        using (var audio = TagLib.File.Create(path))
+        {
+            Check(audio.Tag.Title == "Original title" && audio.Tag.FirstPerformer == "Original artist", $"{ext} existing title and artist preserved");
+            Check(audio.Tag.Album == "Album Name" && audio.Tag.FirstAlbumArtist == "Album Artist", $"{ext} album fields filled");
+            Check(audio.Tag.Genres.Contains("Rock") && audio.Tag.BeatsPerMinute == 120 && audio.Tag.Composers.Contains("Composer Name"), $"{ext} genres, BPM and composer written");
+            Check(audio.Tag.MusicBrainzTrackId == null, $"{ext} missing recording ID remains missing");
+            Check(LibraryMetadataWriter.HasMood(audio), $"{ext} mood tag written");
+        }
+        Check(!LibraryMetadataWriter.WriteIfMissing(path, fixtureArtist, fixtureAlbum, fixtureTrack, 90, new[] { "Different Composer" }, new[] { "sad" }), $"{ext} repeat run preserves metadata");
+        Check(LyricsSidecarWriter.WriteIfMissing(path, "[00:01.00]Test lyrics"), $"{ext} lyrics sidecar added");
+        Check(!LyricsSidecarWriter.WriteIfMissing(path, "Other lyrics"), $"{ext} lyrics sidecar preserved");
+    }
+
+    var preservedPath = CopyFixture("flac");
+    using (var audio = TagLib.File.Create(preservedPath))
+    {
+        audio.Tag.Genres = new[] { "My Genre" };
+        audio.Tag.Composers = new[] { "My Composer" };
+        audio.Tag.BeatsPerMinute = 99;
+        audio.Tag.Lyrics = "My existing lyrics";
+        audio.Save();
+    }
+    Check(LyricsSidecarWriter.HasLyrics(preservedPath) && !LyricsSidecarWriter.WriteIfMissing(preservedPath, "Replacement"), "embedded lyrics preserved");
+    var preservedTrack = new Track { Title = "Other" };
+    LibraryMetadataWriter.WriteIfMissing(preservedPath, new Artist { Name = "Artist" }, new Album { Genres = new List<string> { "Other Genre" } }, preservedTrack, 120, new[] { "Other Composer" });
+    using (var audio = TagLib.File.Create(preservedPath))
+    {
+        Check(audio.Tag.FirstGenre == "My Genre" && audio.Tag.FirstComposer == "My Composer" && audio.Tag.BeatsPerMinute == 99 && audio.Tag.Lyrics == "My existing lyrics", "existing genre, credits, tempo and lyrics preserved");
+    }
+
     var filePath = CopyFixture("flac");
     var track = new Track { Id = 7, TrackFileId = 12, Title = "Song", Explicit = true };
     var trackFile = new TrackFile { Id = 12, Path = filePath };
@@ -69,7 +108,8 @@ try
         _ => throw new Exception(method.Name)
     });
     var lookup = new FakeLookup();
-    var service = new MetadataEnhancerService(tracks, files, lookup, LogManager.GetCurrentClassLogger());
+    var additional = new FakeAdditionalLookup();
+    var service = new MetadataEnhancerService(tracks, files, lookup, additional, LogManager.GetCurrentClassLogger());
     var settings = new MusicEnhancerSettings();
     var artist = new Artist();
     var album = new Album { Id = 3 };
@@ -109,6 +149,19 @@ try
     {
         Check(((XiphComment)taggedClean.GetTag(TagTypes.Xiph)).GetFirstField("ITUNESADVISORY") == "2", "clean title writes clean rating");
     }
+    settings.EnableExplicitTagging = false;
+    settings.EnableLibraryTagging = true;
+    settings.EnableLyricsLookup = true;
+    album.Title = "Fixture Album";
+    album.Genres = new List<string> { "Rock" };
+    track.ArtistMetadata = new ArtistMetadata { Name = "Fixture Artist" };
+    additional.Lyrics = "[00:01.00]Test";
+    service.EnhanceMetadataForArtist(artist, album, settings.ToFilterOptions());
+    Check(System.IO.File.Exists(Path.ChangeExtension(trackFile.Path, ".lrc")), "service adds sidecar independently of explicit tagging");
+    using (var tagged = TagLib.File.Create(trackFile.Path))
+    {
+        Check(tagged.Tag.Album == "Fixture Album" && tagged.Tag.Genres.Contains("Rock"), "service fills library tags even when advisory exists");
+    }
 
     var mock = new LookupHandler();
     var online = new ExplicitLookupService(LogManager.GetCurrentClassLogger(), new HttpClient(mock));
@@ -125,6 +178,20 @@ try
     lookupTrack.ForeignRecordingId = "d0c9d75c-841e-4e8d-91d4-e20debfbc810";
     lookupTrack.Duration = 100000;
     Check(online.Lookup(lookupTrack) == null, "MusicBrainz duration mismatch rejected");
+    lookupTrack.Duration = 208000;
+    lookupTrack.ForeignRecordingId = "e0c9d75c-841e-4e8d-91d4-e20debfbc810";
+    Check(online.LookupSingleIsrc(lookupTrack) == "USUM71703861", "single MusicBrainz ISRC for BPM");
+
+    var extraMock = new AdditionalLookupHandler();
+    var extra = new AdditionalMetadataLookupService(LogManager.GetCurrentClassLogger(), new HttpClient(extraMock));
+    Check(extra.LookupBpm("USUM71703861", 208000) == 115, "Deezer BPM rounded and matched by ISRC");
+    Check(extra.LookupBpm("USUM71703861", 100000) == null, "BPM duration mismatch skipped");
+    Check(extra.LookupLyrics("The Artist", "The Album", "Song", 208000) == "[00:01.00]Lyrics", "LRCLIB lyrics matched");
+    Check(extra.LookupLyrics("The Artist", "The Album", "Song (Clean)", 208000) == null, "different lyric version skipped");
+    var composerTrack = new Track { ForeignRecordingId = "a0c9d75c-841e-4e8d-91d4-e20debfbc810", Duration = 208000 };
+    Check(extra.LookupComposers(composerTrack)?.SequenceEqual(new[] { "Composer Name" }) == true, "MusicBrainz composer credits only");
+    Check(extra.LookupMoods(composerTrack, "test-key")?.SequenceEqual(new[] { "happy", "calm" }) == true, "Last.fm mood whitelist");
+    Check(extra.LookupMoods(composerTrack, null) == null, "mood lookup requires API key");
     if (Environment.GetEnvironmentVariable("MUSICENHANCER_LIVE_TEST") == "1")
     {
         var live = new ExplicitLookupService(LogManager.GetCurrentClassLogger());
@@ -132,6 +199,9 @@ try
             "live MusicBrainz explicit disambiguation");
         Check(live.Lookup(new Track { ForeignRecordingId = "2463ba13-6f03-4d0a-a0e9-e15939d828bc", Duration = 207959 }) == null,
             "live Deezer non-explicit is not a clean edit");
+        var liveExtra = new AdditionalMetadataLookupService(LogManager.GetCurrentClassLogger());
+        Check(liveExtra.LookupBpm("USUM71703861", 207959) == 115, "live Deezer BPM");
+        Check(!string.IsNullOrEmpty(liveExtra.LookupLyrics("Borislav Slavov", "Baldur's Gate 3 (Original Game Soundtrack)", "I Want to Live", 233000)), "live LRCLIB lyrics");
     }
     Console.WriteLine("All metadata tests passed.");
 
@@ -170,6 +240,16 @@ public class FakeLookup : IExplicitLookupService
     public AdvisoryRating? Result;
     public int Calls;
     public AdvisoryRating? Lookup(Track track) { Calls++; return Result; }
+    public string? LookupSingleIsrc(Track track) => null;
+}
+
+public class FakeAdditionalLookup : IAdditionalMetadataLookupService
+{
+    public string? Lyrics;
+    public uint? LookupBpm(string? isrc, int durationMs) => null;
+    public string? LookupLyrics(string? artist, string? album, string? title, int durationMs) => Lyrics;
+    public string[]? LookupComposers(Track track) => null;
+    public string[]? LookupMoods(Track track, string? apiKey) => null;
 }
 
 public class LookupHandler : HttpMessageHandler
@@ -187,6 +267,24 @@ public class LookupHandler : HttpMessageHandler
             : url.EndsWith("USUM71703862")
                 ? "{\"isrc\":\"USUM71703862\",\"duration\":208,\"explicit_lyrics\":false}"
                 : "{\"isrc\":\"USUM71703861\",\"duration\":208,\"explicit_lyrics\":true}";
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
+    }
+}
+
+public class AdditionalLookupHandler : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var uri = request.RequestUri!;
+        var body = uri.Host == "ws.audioscrobbler.com"
+            ? "{\"toptags\":{\"tag\":[{\"name\":\"rock\"},{\"name\":\"Happy\"},{\"name\":\"calm\"}]}}"
+            : uri.Host == "api.deezer.com"
+            ? "{\"isrc\":\"USUM71703861\",\"duration\":208,\"bpm\":114.84}"
+            : uri.Host == "musicbrainz.org" && uri.AbsolutePath.Contains("/recording/")
+                ? "{\"id\":\"a0c9d75c-841e-4e8d-91d4-e20debfbc810\",\"length\":208000,\"relations\":[{\"type\":\"performance\",\"work\":{\"id\":\"b0c9d75c-841e-4e8d-91d4-e20debfbc810\"}}]}"
+            : uri.Host == "musicbrainz.org"
+                ? "{\"id\":\"b0c9d75c-841e-4e8d-91d4-e20debfbc810\",\"relations\":[{\"type\":\"composer\",\"artist\":{\"name\":\"Composer Name\"}},{\"type\":\"lyricist\",\"artist\":{\"name\":\"Not A Composer\"}}]}"
+                : "{\"artistName\":\"The Artist\",\"albumName\":\"The Album\",\"trackName\":\"Song\",\"duration\":208,\"instrumental\":false,\"syncedLyrics\":\"[00:01.00]Lyrics\"}";
         return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
     }
 }

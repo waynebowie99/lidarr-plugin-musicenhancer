@@ -5,6 +5,14 @@ All notable changes to the Lidarr Music Enhancer plugin will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1.9] - 2026-11-14
+
+### Added
+- Optional fill-only metadata from Lidarr, including titles, artists, genres, label, release year, track/disc numbers and MusicBrainz IDs.
+- Optional key-free Deezer BPM, MusicBrainz composer credits, and LRCLIB lyrics sidecars; optional Last.fm community moods with an API key.
+- Preserve existing tags and lyrics; all new lookup and file-writing options default to off.
+- Document Symfonium/Jellyfin provider limitations.
+
 ## [1.0.1.8] - 2026-11-14
 
 ### Added

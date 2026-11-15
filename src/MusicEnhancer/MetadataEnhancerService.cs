@@ -21,14 +21,16 @@ public class MetadataEnhancerService : IMetadataEnhancerService
     private readonly ITrackService _tracks;
     private readonly IMediaFileService _files;
     private readonly IExplicitLookupService _lookup;
+    private readonly IAdditionalMetadataLookupService _additionalLookup;
     private readonly Logger _logger;
     private static readonly object WriteLock = new();
 
-    public MetadataEnhancerService(ITrackService tracks, IMediaFileService files, IExplicitLookupService lookup, Logger logger)
+    public MetadataEnhancerService(ITrackService tracks, IMediaFileService files, IExplicitLookupService lookup, IAdditionalMetadataLookupService additionalLookup, Logger logger)
     {
         _tracks = tracks ?? throw new ArgumentNullException(nameof(tracks));
         _files = files ?? throw new ArgumentNullException(nameof(files));
         _lookup = lookup ?? throw new ArgumentNullException(nameof(lookup));
+        _additionalLookup = additionalLookup ?? throw new ArgumentNullException(nameof(additionalLookup));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -38,7 +40,8 @@ public class MetadataEnhancerService : IMetadataEnhancerService
         ArgumentNullException.ThrowIfNull(album);
         ArgumentNullException.ThrowIfNull(options);
 
-        if (!options.EnableMetadataProcessing || !options.EnableExplicitTagging || !options.EnableMetadataWriting)
+        if (!options.EnableMetadataProcessing || !options.EnableMetadataWriting ||
+            (!options.EnableExplicitTagging && !options.EnableLibraryTagging && !options.EnableLyricsLookup))
         {
             return;
         }
@@ -56,22 +59,84 @@ public class MetadataEnhancerService : IMetadataEnhancerService
                 }
 
                 var file = _files.Get(track.TrackFileId);
-                if (file == null || string.IsNullOrWhiteSpace(file.Path) || !System.IO.File.Exists(file.Path))
+                if (file == null || string.IsNullOrWhiteSpace(file.Path) || !System.IO.File.Exists(file.Path) || !LibraryMetadataWriter.Supports(file.Path))
                 {
                     continue;
                 }
 
-                // Preserve manual and existing ratings, even if they conflict with the metadata.
-                lock (WriteLock)
+                if (options.EnableLibraryTagging)
                 {
-                    if (AdvisoryTagWriter.HasRating(file.Path))
+                    uint? bpm = null;
+                    string[]? composers = null;
+                    string[]? moods = null;
+                    if (options.EnableBpmLookup || options.EnableComposerLookup || options.EnableMoodLookup)
                     {
-                        continue;
+                        string? isrc;
+                        bool missingBpm;
+                        bool missingComposers;
+                        bool missingMood;
+                        lock (WriteLock)
+                        {
+                            using var audio = TagLib.File.Create(file.Path);
+                            missingBpm = audio.Tag.BeatsPerMinute == 0;
+                            missingComposers = !audio.Tag.Composers.Any(s => !string.IsNullOrWhiteSpace(s));
+                            missingMood = !LibraryMetadataWriter.HasMood(audio);
+                            isrc = audio.Tag.ISRC;
+                        }
+                        if (options.EnableBpmLookup && missingBpm)
+                        {
+                            isrc ??= _lookup.LookupSingleIsrc(track);
+                            bpm = _additionalLookup.LookupBpm(isrc, track.Duration);
+                        }
+                        if (options.EnableComposerLookup && missingComposers)
+                        {
+                            composers = _additionalLookup.LookupComposers(track);
+                        }
+                        if (options.EnableMoodLookup && missingMood)
+                        {
+                            moods = _additionalLookup.LookupMoods(track, options.LastFmApiKey);
+                        }
+                    }
+
+                    lock (WriteLock)
+                    {
+                        if (LibraryMetadataWriter.WriteIfMissing(file.Path, artist, album, track, bpm, composers, moods))
+                        {
+                            UpdateFile(file);
+                            _logger.Info("MusicEnhancer: Filled missing library metadata for '{0}'", track.Title);
+                        }
                     }
                 }
 
+                bool hasLyrics = true;
+                if (options.EnableLyricsLookup)
+                {
+                    lock (WriteLock) hasLyrics = LyricsSidecarWriter.HasLyrics(file.Path);
+                }
+                if (options.EnableLyricsLookup && !hasLyrics)
+                {
+                    var lyricArtist = track.ArtistMetadata?.Value?.Name;
+                    var lyrics = _additionalLookup.LookupLyrics(lyricArtist, album.Title, track.Title, track.Duration);
+                    bool written = false;
+                    if (lyrics != null)
+                    {
+                        lock (WriteLock) written = LyricsSidecarWriter.WriteIfMissing(file.Path, lyrics);
+                    }
+                    if (written)
+                    {
+                        _logger.Info("MusicEnhancer: Added lyrics sidecar for '{0}'", track.Title);
+                    }
+                }
+
+                if (!options.EnableExplicitTagging) continue;
+                bool hasAdvisory;
+                lock (WriteLock) hasAdvisory = AdvisoryTagWriter.HasRating(file.Path);
+                if (hasAdvisory)
+                {
+                    continue;
+                }
+
                 var clean = VersionMatcher.MatchVersion(track, options)?.VersionType == VersionType.Clean;
-                // Clean and explicit evidence can conflict; don't guess.
                 if (clean && track.Explicit)
                 {
                     _logger.Warn("MusicEnhancer: Conflicting clean and explicit metadata for '{0}'; leaving tags unchanged", track.Title);
@@ -79,15 +144,8 @@ public class MetadataEnhancerService : IMetadataEnhancerService
                 }
 
                 int? rating = clean ? 2 : track.Explicit ? 1 : null;
-                if (rating == null && options.EnableOnlineExplicitLookup)
-                {
-                    rating = (int?)_lookup.Lookup(track);
-                }
-
-                if (rating == null)
-                {
-                    continue;
-                }
+                if (rating == null && options.EnableOnlineExplicitLookup) rating = (int?)_lookup.Lookup(track);
+                if (rating == null) continue;
 
                 lock (WriteLock)
                 {
@@ -97,10 +155,7 @@ public class MetadataEnhancerService : IMetadataEnhancerService
                         continue;
                     }
 
-                    var info = new FileInfo(file.Path);
-                    file.Size = info.Length;
-                    file.Modified = info.LastWriteTimeUtc;
-                    _files.Update(file);
+                    UpdateFile(file);
                 }
 
                 _logger.Info("MusicEnhancer: Tagged '{0}' as {1}", track.Title, rating == 1 ? "explicit" : "clean");
@@ -110,6 +165,14 @@ public class MetadataEnhancerService : IMetadataEnhancerService
                 _logger.Warn(ex, "MusicEnhancer: Unable to tag track '{0}'", track.Title);
             }
         }
+    }
+
+    private void UpdateFile(TrackFile file)
+    {
+        var info = new FileInfo(file.Path);
+        file.Size = info.Length;
+        file.Modified = info.LastWriteTimeUtc;
+        _files.Update(file);
     }
 }
 

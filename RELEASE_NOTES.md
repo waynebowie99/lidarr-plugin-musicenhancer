@@ -1,6 +1,12 @@
-# Music Enhancer Plugin v1.0.1.8
+# Music Enhancer Plugin v1.0.1.9
 
 ## What's New
+
+### Additional Metadata
+- Opt in to filling missing library tags from Lidarr's existing metadata.
+- Optional MusicBrainz composer credits, Deezer BPM, LRCLIB lyric sidecars and Last.fm community moods (Last.fm requires an API key).
+- Existing tags and lyrics are preserved; unknown and ambiguous results are skipped.
+- Symfonium's Jellyfin provider does not expose every tag, including BPM, composers and album mood; see the README for details.
 
 ### Opt-in Explicit and Clean Tagging
 - Tag missing advisory ratings using Lidarr's track and file associations.

@@ -62,6 +62,11 @@ public class MusicEnhancerOptions
     public bool EnableMetadataWriting { get; }
     public bool EnableOnlineExplicitLookup { get; }
     public bool EnableMetadataProcessing { get; }
+    public bool EnableLibraryTagging { get; }
+    public bool EnableLyricsLookup { get; }
+    public bool EnableBpmLookup { get; }
+    public bool EnableComposerLookup { get; }
+    public bool EnableMoodLookup { get; }
     public bool KeepCleanVersions { get; }
     public string? LastFmApiKey { get; }
     public string? DeezerApiKey { get; }
@@ -92,7 +97,12 @@ public class MusicEnhancerOptions
         string? discogsApiSecret,
         string? acoustIdApiKey,
         bool enableOnlineExplicitLookup = false,
-        bool enableMetadataProcessing = false)
+        bool enableMetadataProcessing = false,
+        bool enableLibraryTagging = false,
+        bool enableLyricsLookup = false,
+        bool enableBpmLookup = false,
+        bool enableComposerLookup = false,
+        bool enableMoodLookup = false)
     {
         ReleaseTypesToFilter = releaseTypesToFilter ?? new HashSet<string>();
         VersionFilterAction = versionFilterAction;
@@ -111,6 +121,11 @@ public class MusicEnhancerOptions
         EnableMetadataWriting = enableMetadataWriting;
         EnableOnlineExplicitLookup = enableOnlineExplicitLookup;
         EnableMetadataProcessing = enableMetadataProcessing;
+        EnableLibraryTagging = enableLibraryTagging;
+        EnableLyricsLookup = enableLyricsLookup;
+        EnableBpmLookup = enableBpmLookup;
+        EnableComposerLookup = enableComposerLookup;
+        EnableMoodLookup = enableMoodLookup;
         KeepCleanVersions = keepCleanVersions;
         LastFmApiKey = lastFmApiKey;
         DeezerApiKey = deezerApiKey;

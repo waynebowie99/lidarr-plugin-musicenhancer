@@ -4,7 +4,6 @@ using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Threading;
 using NLog;
 using NzbDrone.Core.Music;
 
@@ -197,7 +196,7 @@ public class ExplicitLookupService : IExplicitLookupService
 
     private static HttpClient CreateClient()
     {
-        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10), MaxResponseContentBufferSize = 4 * 1024 * 1024 };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("Lidarr-MusicEnhancer/1.0 (https://github.com/waynebowie99/lidarr-plugin-musicenhancer)");
         return client;
     }

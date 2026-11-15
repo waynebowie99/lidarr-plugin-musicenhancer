@@ -4,6 +4,8 @@ using System.Text;
 using NLog;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.Music;
+using NzbDrone.Core.Notifications;
+using NzbDrone.Core.Lifecycle;
 using NzbDrone.Core.Plugins;
 using TagLib;
 using TagLib.Id3v2;
@@ -29,6 +31,7 @@ try
             Check(!AdvisoryTagWriter.HasRating(path), $"{ext} starts unrated");
             Check(AdvisoryTagWriter.WriteIfMissing(path, value), $"{ext} written");
             Check(AdvisoryTagWriter.HasRating(path), $"{ext} has rating");
+            Check(AdvisoryTagWriter.IsKnownClean(path) == (value == 2), $"{ext} clean advisory detection");
             Check(!AdvisoryTagWriter.WriteIfMissing(path, value == 1 ? 2 : 1), $"{ext} existing rating preserved");
             using var audio = TagLib.File.Create(path);
             Check(audio.Tag.Title == "Original title" && audio.Tag.FirstPerformer == "Original artist", $"{ext} other metadata retained");
@@ -55,11 +58,15 @@ try
     {
         var path = CopyFixture(ext);
         var fixtureArtist = new Artist { Name = "Album Artist", ForeignArtistId = "a0c9d75c-841e-4e8d-91d4-e20debfbc810" };
-        var fixtureAlbum = new Album { Title = "Album Name", Genres = new List<string> { "Rock", "Pop" } };
+        var fixtureAlbum = new Album { Title = "Album Name", Genres = new List<string> { "Rock", "Pop" }, ReleaseDate = new DateTime(1998, 1, 1) };
+        fixtureAlbum.SecondaryTypes.Add(SecondaryAlbumType.Compilation);
         var fixtureTrack = new Track { Title = "Do not overwrite", MediumNumber = 2, AbsoluteTrackNumber = 4 };
         fixtureTrack.ArtistMetadata = new ArtistMetadata { Name = "Other Artist", ForeignArtistId = "b0c9d75c-841e-4e8d-91d4-e20debfbc810" };
-        fixtureTrack.AlbumRelease = new AlbumRelease { ReleaseDate = new DateTime(2001, 1, 1), Label = new List<string> { "A Label" } };
-        Check(LibraryMetadataWriter.WriteIfMissing(path, fixtureArtist, fixtureAlbum, fixtureTrack, 120, new[] { "Composer Name" }, new[] { "happy", "uplifting" }), $"{ext} library tags written");
+        var fixtureRelease = new AlbumRelease { ReleaseDate = new DateTime(2001, 1, 1), Label = new List<string> { "A Label" }, Disambiguation = "Deluxe", Country = new List<string> { "US" }, Media = new List<Medium> { new() { Number = 2, Format = "CD", Name = "Disc Two" } } };
+        fixtureRelease.Tracks = new List<Track> { fixtureTrack, new() { MediumNumber = 2 } };
+        fixtureTrack.AlbumRelease = fixtureRelease;
+        var recording = new RecordingMetadata { Work = "The Work", CommunityTags = new[] { "rock", "happy" } };
+        Check(LibraryMetadataWriter.WriteIfMissing(path, fixtureArtist, fixtureAlbum, fixtureTrack, 120, new[] { "Composer Name" }, new[] { "happy", "uplifting" }, recording), $"{ext} library tags written");
         using (var audio = TagLib.File.Create(path))
         {
             Check(audio.Tag.Title == "Original title" && audio.Tag.FirstPerformer == "Original artist", $"{ext} existing title and artist preserved");
@@ -67,10 +74,65 @@ try
             Check(audio.Tag.Genres.Contains("Rock") && audio.Tag.BeatsPerMinute == 120 && audio.Tag.Composers.Contains("Composer Name"), $"{ext} genres, BPM and composer written");
             Check(audio.Tag.MusicBrainzTrackId == null, $"{ext} missing recording ID remains missing");
             Check(LibraryMetadataWriter.HasMood(audio), $"{ext} mood tag written");
+            var extraFields = new SymfoniumFieldWriter(audio, "." + ext);
+            Check(extraFields.Exists(new[] { "MEDIA" }, "TMED"), $"{ext} media tag written");
+            Check(extraFields.Exists(new[] { "DISCSUBTITLE" }, "TSST"), $"{ext} disc subtitle written");
+            Check(extraFields.Exists(new[] { "ORIGINALDATE" }, "TDOR", id3Fallback: "TORY"), $"{ext} original year written");
+            Check(extraFields.Exists(new[] { "WORK" }, "TIT1"), $"{ext} work written");
+            Check(extraFields.Exists(new[] { "TRACK_TAGS" }), $"{ext} track tags written");
+            Check(extraFields.Exists(new[] { "ALBUMVERSION" }), $"{ext} album version written");
+            Check(audio.Tag.TrackCount == 2, $"{ext} per-disc track count written");
+            if (ext == "mp3")
+            {
+                var id3 = (TagLib.Id3v2.Tag)audio.GetTag(TagTypes.Id3v2);
+                string Text(string id) => id3.GetFrames<TextInformationFrame>(ByteVector.FromString(id, StringType.Latin1)).Single().Text[0];
+                Check(Text("TMED") == "CD" && Text("TSST") == "Disc Two" && Text("TIT1") == "The Work", "ID3 standard fields have correct values");
+                Check(UserTextInformationFrame.Get(id3, "COUNTRY", false).Text[0] == "US" && id3.IsCompilation, "ID3 country and compilation");
+            }
+            else if (ext == "m4a")
+            {
+                var apple = (AppleTag)audio.GetTag(TagTypes.Apple);
+                Check(apple.GetDashBox("com.apple.iTunes", "MEDIA") == "CD" && apple.GetDashBox("com.apple.iTunes", "WORK") == "The Work", "Apple freeform fields have correct values");
+                Check(apple.GetDashBox("com.apple.iTunes", "RELEASECOUNTRY") == "US" && apple.IsCompilation, "Apple country and compilation");
+            }
+            else
+            {
+                var xiph = (XiphComment)audio.GetTag(TagTypes.Xiph);
+                Check(xiph.GetFirstField("MEDIA") == "CD" && xiph.GetFirstField("WORK") == "The Work" && xiph.GetFirstField("ORIGINALDATE") == "1998", $"{ext} fields have correct values");
+                Check(xiph.GetFirstField("RELEASECOUNTRY") == "US" && xiph.GetFirstField("COMPILATION") == "1", $"{ext} country and compilation");
+            }
         }
-        Check(!LibraryMetadataWriter.WriteIfMissing(path, fixtureArtist, fixtureAlbum, fixtureTrack, 90, new[] { "Different Composer" }, new[] { "sad" }), $"{ext} repeat run preserves metadata");
+        Check(!LibraryMetadataWriter.WriteIfMissing(path, fixtureArtist, fixtureAlbum, fixtureTrack, 90, new[] { "Different Composer" }, new[] { "sad" }, recording), $"{ext} repeat run preserves metadata");
         Check(LyricsSidecarWriter.WriteIfMissing(path, "[00:01.00]Test lyrics"), $"{ext} lyrics sidecar added");
         Check(!LyricsSidecarWriter.WriteIfMissing(path, "Other lyrics"), $"{ext} lyrics sidecar preserved");
+    }
+
+    foreach (var ext in new[] { "mp3", "flac", "ogg", "opus", "m4a" })
+    {
+        var path = CopyFixture(ext);
+        using (var audio = TagLib.File.Create(path))
+        {
+            audio.Tag.Performers = Array.Empty<string>();
+            audio.Save();
+        }
+        var metadata = new RecordingMetadata { Artists = new[] { "First Artist", "Second Artist" }, ArtistSortNames = new[] { "Artist, First", "Artist, Second" } };
+        LibraryMetadataWriter.WriteIfMissing(path, new Artist(), new Album(), new Track(), recording: metadata);
+        using var tagged = TagLib.File.Create(path);
+        Check(tagged.Tag.Performers.SequenceEqual(metadata.Artists), $"{ext} separate recording artists round trip");
+    }
+
+    var mismatchPath = CopyFixture("flac");
+    using (var audio = TagLib.File.Create(mismatchPath))
+    {
+        audio.Tag.Album = "Different Album";
+        audio.Save();
+    }
+    var mismatchedTrack = new Track { Title = "Different Track", ForeignRecordingId = "a0c9d75c-841e-4e8d-91d4-e20debfbc810" };
+    var mismatchedAlbum = new Album { Title = "Album", ForeignAlbumId = "b0c9d75c-841e-4e8d-91d4-e20debfbc810" };
+    LibraryMetadataWriter.WriteIfMissing(mismatchPath, new Artist(), mismatchedAlbum, mismatchedTrack);
+    using (var audio = TagLib.File.Create(mismatchPath))
+    {
+        Check(string.IsNullOrEmpty(audio.Tag.MusicBrainzTrackId) && string.IsNullOrEmpty(audio.Tag.MusicBrainzReleaseGroupId), "do not attach IDs to conflicting existing titles");
     }
 
     var preservedPath = CopyFixture("flac");
@@ -82,6 +144,23 @@ try
         audio.Tag.Lyrics = "My existing lyrics";
         audio.Save();
     }
+
+    var appleExisting = CopyFixture("m4a");
+    using (var audio = TagLib.File.Create(appleExisting))
+    {
+        var apple = (AppleTag)audio.GetTag(TagTypes.Apple, true);
+        apple.SetDashBox("com.apple.iTunes", "mood", "Existing Mood");
+        apple.SetDashBox("com.apple.iTunes", "albumversion", "Existing Edition");
+        apple.SetDashBox("com.apple.iTunes", "itunesadvisory", "0");
+        apple.SetDashBox("com.apple.iTunes", "lyrics", "Existing Lyrics");
+        audio.Save();
+    }
+    using (var audio = TagLib.File.Create(appleExisting))
+    {
+        Check(LibraryMetadataWriter.HasMood(audio), "case-insensitive Apple mood preserved");
+        Check(new SymfoniumFieldWriter(audio, ".m4a").Exists(new[] { "ALBUMVERSION" }), "case-insensitive Apple edition preserved");
+    }
+    Check(AdvisoryTagWriter.HasRating(appleExisting) && LyricsSidecarWriter.HasLyrics(appleExisting), "case-insensitive Apple advisory and lyrics preserved");
     Check(LyricsSidecarWriter.HasLyrics(preservedPath) && !LyricsSidecarWriter.WriteIfMissing(preservedPath, "Replacement"), "embedded lyrics preserved");
     var preservedTrack = new Track { Title = "Other" };
     LibraryMetadataWriter.WriteIfMissing(preservedPath, new Artist { Name = "Artist" }, new Album { Genres = new List<string> { "Other Genre" } }, preservedTrack, 120, new[] { "Other Composer" });
@@ -89,6 +168,140 @@ try
     {
         Check(audio.Tag.FirstGenre == "My Genre" && audio.Tag.FirstComposer == "My Composer" && audio.Tag.BeatsPerMinute == 99 && audio.Tag.Lyrics == "My existing lyrics", "existing genre, credits, tempo and lyrics preserved");
     }
+
+    foreach (var title in new[] { "Alive", "Deliver Me", "Credit", "Flip", "Song - Live and Let Die", "Song (Remastered 2011)", "Song (Original Version)", "Cleanin' Out My Closet" })
+        Check(VersionMatcher.MatchVersion(new Track { Title = title }) == null, $"ordinary title not filtered: {title}");
+    foreach (var (title, type) in new[] { ("Song (Radio Edit)", VersionType.Edit), ("Song (Clean Edit)", VersionType.Clean), ("Song (Live at Wembley)", VersionType.Live), ("Song - Remix", VersionType.Remix), ("Album Commentary", VersionType.Commentary), ("Song (Extended Mix)", VersionType.Version) })
+        Check(VersionMatcher.MatchVersion(new Track { Title = title })?.VersionType == type, $"version marker detected: {title}");
+
+    var filterTracks = new List<Track>
+    {
+        new() { Id = 1, TrackFileId = 101, Title = "Song (Remix)", Duration = 180000 },
+        new() { Id = 2, TrackFileId = 102, Title = "Song (Radio Edit)", Duration = 180000 },
+        new() { Id = 3, TrackFileId = 103, Title = "Song (Live)", Duration = 180000 },
+        new() { Id = 4, TrackFileId = 104, Title = "Song (Clean)", Duration = 180000 },
+        new() { Id = 5, TrackFileId = 105, Title = "Alive", Duration = 180000 }
+    };
+    var deleted = new List<int>();
+    var unmonitored = 0;
+    var sharedFile = 0;
+    var filterPaths = filterTracks.ToDictionary(t => t.TrackFileId, t => TrackFixture(t.Title));
+    var filterTrackService = Stub<ITrackService>.Create((method, args) => method.Name switch
+    {
+        "GetTracksByAlbum" => filterTracks,
+        "GetTracksByFileId" => LinkedTracks(args),
+        _ => throw new Exception(method.Name)
+    });
+    var filterFiles = Stub<IMediaFileService>.Create((method, args) => method.Name == "Get" ? FilterFile(args) : throw new Exception(method.Name));
+    var deleter = Stub<IDeleteMediaFiles>.Create((method, args) => Delete(args));
+    var albums = Stub<IAlbumService>.Create((method, args) => Unmonitor());
+    var filter = new ContentFilterService(LogManager.GetCurrentClassLogger(), filterTrackService, filterFiles, deleter, albums);
+    var filterArtist = new Artist { Path = testDir };
+    if (OperatingSystem.IsLinux())
+    {
+        var link = Path.Combine(testDir, "linked-audio.mp3");
+        System.IO.File.CreateSymbolicLink(link, filterPaths[101]);
+        Check(!MusicFileIdentity.IsWithinArtistFolder(filterArtist, link), "symlinked files are not treated as safe writes");
+    }
+    var filterSettings = new MusicEnhancerSettings();
+    Check(!filterSettings.DeleteFilesAfterUnmonitor, "file deletion defaults off for new settings");
+    var oldSettings = System.Text.Json.JsonSerializer.Deserialize<MusicEnhancerSettings>("{\"DeleteFilesAfterUnmonitor\":true,\"DiscogsApiSecret\":\"saved-value\"}")!;
+    Check(oldSettings.DeleteFilesAfterUnmonitor && oldSettings.DiscogsApiSecret == "saved-value" && !oldSettings.EnableRecordingMetadataLookup, "existing settings and legacy secret retained");
+    filter.FilterContentForArtist(filterArtist, new Album { Id = 4 }, filterSettings.ToFilterOptions());
+    Check(deleted.Count == 0 && unmonitored == 0, "flag-only never deletes or unmonitors");
+    filterSettings.VersionFilterAction = VersionFilterAction.Unmonitor;
+    filter.FilterContentForArtist(filterArtist, new Album { Id = 4 }, filterSettings.ToFilterOptions());
+    Check(deleted.Count == 0 && unmonitored == 0, "mixed album retained when deletion disabled");
+    filterSettings.DeleteFilesAfterUnmonitor = true;
+    sharedFile = 102;
+    filter.FilterContentForArtist(filterArtist, new Album { Id = 4 }, filterSettings.ToFilterOptions());
+    Check(deleted.SequenceEqual(new[] { 101, 103 }) && unmonitored == 0, "only matched unshared files deleted even when majority match");
+    deleted.Clear();
+    filterSettings.VersionFilterAction = (VersionFilterAction)999;
+    Check(!filterSettings.Validate().IsValid, "invalid filter action fails validation");
+    filter.FilterContentForArtist(filterArtist, new Album { Id = 4 }, filterSettings.ToFilterOptions());
+    Check(deleted.Count == 0 && unmonitored == 0, "invalid action is non-destructive");
+    filterSettings.VersionFilterAction = VersionFilterAction.Unmonitor;
+    filterTracks.Clear();
+    filterTracks.Add(new Track { Id = 6, TrackFileId = 106, Title = "Commentary", Duration = 1000 });
+    filterTracks.Add(new Track { Id = 7, TrackFileId = 0, Title = "Undownloaded original", Duration = 180000 });
+    filterPaths[106] = TrackFixture("Commentary");
+    filter.FilterContentForArtist(filterArtist, new Album { Id = 4 }, filterSettings.ToFilterOptions());
+    Check(deleted.SequenceEqual(new[] { 106 }) && unmonitored == 0, "short commentary detected and undownloaded track prevents album unmonitor");
+    deleted.Clear();
+    filterTracks.RemoveAt(1);
+    filter.FilterContentForArtist(filterArtist, new Album { Id = 4 }, filterSettings.ToFilterOptions());
+    Check(deleted.SequenceEqual(new[] { 106 }) && unmonitored == 1, "all-matched album can be unmonitored");
+    deleted.Clear();
+    using (var audio = TagLib.File.Create(filterPaths[106]))
+    {
+        audio.Tag.MusicBrainzTrackId = "a0c9d75c-841e-4e8d-91d4-e20debfbc810";
+        audio.Save();
+    }
+    filterTracks[0].ForeignRecordingId = "b0c9d75c-841e-4e8d-91d4-e20debfbc810";
+    filter.FilterContentForArtist(filterArtist, new Album { Id = 4 }, filterSettings.ToFilterOptions());
+    Check(deleted.Count == 0 && unmonitored == 1, "recording ID conflict prevents deletion and unmonitoring");
+    filterPaths[106] = TrackFixture("Song (Radio Edit)");
+    Check(AdvisoryTagWriter.WriteIfMissing(filterPaths[106], 2), "clean advisory fixture created");
+    filterTracks[0].ForeignRecordingId = null!;
+    filterTracks[0].Title = "Song (Radio Edit)";
+    filterTracks[0].Duration = 180000;
+    filter.FilterContentForArtist(filterArtist, new Album { Id = 4 }, filterSettings.ToFilterOptions());
+    Check(deleted.Count == 0 && unmonitored == 1, "clean advisory protects edit when keep-clean is enabled");
+    filterSettings.KeepCleanVersions = false;
+    filter.FilterContentForArtist(filterArtist, new Album { Id = 4 }, filterSettings.ToFilterOptions());
+    Check(deleted.SequenceEqual(new[] { 106 }) && unmonitored == 2, "clean advisory can be filtered only when explicitly disabled");
+    deleted.Clear();
+    filterSettings.KeepCleanVersions = true;
+    filterPaths[106] = Path.Combine(testDir, "missing.mp3");
+    filter.FilterContentForArtist(filterArtist, new Album { Id = 4 }, filterSettings.ToFilterOptions());
+    Check(deleted.Count == 0 && unmonitored == 2, "unreadable clean advisory prevents destructive action");
+    filterPaths[106] = TrackFixture("Ordinary Song");
+    filter.FilterContentForArtist(filterArtist, new Album { Id = 4 }, filterSettings.ToFilterOptions());
+    Check(deleted.Count == 0 && unmonitored == 2, "unverified file title prevents destructive action");
+    filterPaths[106] = TrackFixture("Different Song (Radio Edit)");
+    filter.FilterContentForArtist(filterArtist, new Album { Id = 4 }, filterSettings.ToFilterOptions());
+    Check(deleted.Count == 0 && unmonitored == 2, "same version marker on a different title is not proof of identity");
+    using (var audio = TagLib.File.Create(filterPaths[106]))
+    {
+        audio.Tag.MusicBrainzTrackId = "a0c9d75c-841e-4e8d-91d4-e20debfbc810";
+        audio.Save();
+    }
+    filterTracks[0].ForeignRecordingId = "a0c9d75c-841e-4e8d-91d4-e20debfbc810";
+    filter.FilterContentForArtist(filterArtist, new Album { Id = 4 }, filterSettings.ToFilterOptions());
+    Check(deleted.SequenceEqual(new[] { 106 }) && unmonitored == 3, "matching embedded recording ID verifies version");
+    deleted.Clear();
+    filterTracks[0].ForeignRecordingId = null!;
+    filterPaths[106] = TrackFixture("Song (Radio Edit)");
+    filterArtist.Path = Path.Combine(testDir, "other-artist");
+    filter.FilterContentForArtist(filterArtist, new Album { Id = 4 }, filterSettings.ToFilterOptions());
+    Check(deleted.Count == 0 && unmonitored == 3, "files outside artist folder prevent destructive action");
+    filterArtist.Path = testDir;
+    filterSettings.ReleaseTypesToFilter = "Compilation";
+    var compilation = new Album { Id = 4, AlbumType = "Album" };
+    compilation.SecondaryTypes.Add(SecondaryAlbumType.Compilation);
+    filter.FilterContentForArtist(filterArtist, compilation, filterSettings.ToFilterOptions());
+    Check(deleted.SequenceEqual(new[] { 106 }) && unmonitored == 4, "secondary compilation type can be selected");
+
+    var startupDefinitions = new List<NotificationDefinition>
+    {
+        new() { Implementation = "MusicEnhancer", Settings = new MusicEnhancerSettings() },
+        new() { Implementation = "MusicEnhancer", Settings = new MusicEnhancerSettings { ScanLibraryOnStartup = true } }
+    };
+    var startupAlbums = new List<Album> { new() { Id = 10, Monitored = true }, new() { Id = 11, Monitored = true } };
+    var startupFilterCount = 0;
+    var startupMetadataCount = 0;
+    var factory = Stub<INotificationFactory>.Create((method, args) => method.Name == "All" ? startupDefinitions : throw new Exception(method.Name));
+    var startupArtists = Stub<IArtistService>.Create((method, args) => method.Name == "GetAllArtists" ? new List<Artist> { new() { Monitored = true } } : throw new Exception(method.Name));
+    var startupAlbumService = Stub<IAlbumService>.Create((method, args) => method.Name == "GetAlbumsByArtist" ? startupAlbums : throw new Exception(method.Name));
+    var startupFilter = Stub<IContentFilterService>.Create((method, args) => StartupFilter(args));
+    var startupMetadata = Stub<IMetadataEnhancerService>.Create((method, args) => StartupMetadata());
+    var startup = new MusicEnhancerStartupService(startupArtists, startupAlbumService, startupFilter, startupMetadata, factory, LogManager.GetCurrentClassLogger());
+    startup.HandleAsync(new ApplicationStartedEvent());
+    Check(startupFilterCount == 2 && startupMetadataCount == 1, "startup selects enabled connection and continues after an album error");
+    startupDefinitions.Add(new NotificationDefinition { Implementation = "MusicEnhancer", Settings = new MusicEnhancerSettings { ScanLibraryOnStartup = true } });
+    startup.HandleAsync(new ApplicationStartedEvent());
+    Check(startupFilterCount == 2, "startup refuses conflicting enabled connections");
 
     var filePath = CopyFixture("flac");
     var track = new Track { Id = 7, TrackFileId = 12, Title = "Song", Explicit = true };
@@ -109,9 +322,11 @@ try
     });
     var lookup = new FakeLookup();
     var additional = new FakeAdditionalLookup();
-    var service = new MetadataEnhancerService(tracks, files, lookup, additional, LogManager.GetCurrentClassLogger());
+    var fileNotifications = 0;
+    var watcher = Stub<IRootFolderWatchingService>.Create((method, args) => Watch());
+    var service = new MetadataEnhancerService(tracks, files, lookup, additional, watcher, LogManager.GetCurrentClassLogger());
     var settings = new MusicEnhancerSettings();
-    var artist = new Artist();
+    var artist = new Artist { Path = testDir };
     var album = new Album { Id = 3 };
 
     service.EnhanceMetadataForArtist(artist, album, settings.ToFilterOptions());
@@ -138,9 +353,9 @@ try
     Check(!AdvisoryTagWriter.HasRating(filePath), "unknown does not mean clean");
     lookup.Result = AdvisoryRating.Explicit;
     service.EnhanceMetadataForArtist(artist, album, settings.ToFilterOptions());
-    Check(AdvisoryTagWriter.HasRating(filePath) && updates == 1 && trackFile.Size == new FileInfo(filePath).Length, "positive lookup writes and updates Lidarr file");
+    Check(AdvisoryTagWriter.HasRating(filePath) && updates == 1 && fileNotifications == 1 && trackFile.Size == new FileInfo(filePath).Length, "positive lookup writes and updates Lidarr file and watcher");
     service.EnhanceMetadataForArtist(artist, album, settings.ToFilterOptions());
-    Check(updates == 1, "repeat run does not rewrite");
+    Check(updates == 1 && fileNotifications == 1, "repeat run does not rewrite or notify watcher");
     trackFile.Path = CopyFixture("ogg");
     track.Title = "Song (Clean)";
     track.Explicit = false;
@@ -162,6 +377,25 @@ try
     {
         Check(tagged.Tag.Album == "Fixture Album" && tagged.Tag.Genres.Contains("Rock"), "service fills library tags even when advisory exists");
     }
+    settings.EnableRecordingMetadataLookup = true;
+    additional.Recording = new RecordingMetadata { Work = "The Work", CommunityTags = new[] { "rock" } };
+    service.EnhanceMetadataForArtist(artist, album, settings.ToFilterOptions());
+    using (var tagged = TagLib.File.Create(trackFile.Path))
+    {
+        Check(additional.RecordingCalls == 1 && ((XiphComment)tagged.GetTag(TagTypes.Xiph)).GetFirstField("WORK") == "The Work", "service writes optional recording metadata");
+    }
+    trackFile.Path = CopyFixture("flac");
+    using (var audio = TagLib.File.Create(trackFile.Path))
+    {
+        audio.Tag.MusicBrainzTrackId = "a0c9d75c-841e-4e8d-91d4-e20debfbc810";
+        audio.Save();
+    }
+    track.ForeignRecordingId = "b0c9d75c-841e-4e8d-91d4-e20debfbc810";
+    track.Explicit = true;
+    settings.EnableExplicitTagging = true;
+    var beforeConflict = updates;
+    service.EnhanceMetadataForArtist(artist, album, settings.ToFilterOptions());
+    Check(updates == beforeConflict && !AdvisoryTagWriter.HasRating(trackFile.Path), "recording ID conflict prevents metadata changes");
 
     var mock = new LookupHandler();
     var online = new ExplicitLookupService(LogManager.GetCurrentClassLogger(), new HttpClient(mock));
@@ -190,6 +424,12 @@ try
     Check(extra.LookupLyrics("The Artist", "The Album", "Song (Clean)", 208000) == null, "different lyric version skipped");
     var composerTrack = new Track { ForeignRecordingId = "a0c9d75c-841e-4e8d-91d4-e20debfbc810", Duration = 208000 };
     Check(extra.LookupComposers(composerTrack)?.SequenceEqual(new[] { "Composer Name" }) == true, "MusicBrainz composer credits only");
+    var recordingLookup = extra.LookupRecordingMetadata(composerTrack);
+    Check(recordingLookup?.Artists?.SequenceEqual(new[] { "First Artist", "Second Artist" }) == true && recordingLookup.Work == "The Work", "MusicBrainz recording credits and work");
+    Check(recordingLookup?.CommunityTags?.SequenceEqual(new[] { "rock", "happy" }) == true && recordingLookup.Moods?.SequenceEqual(new[] { "happy" }) == true, "MusicBrainz positive community tags and moods");
+    composerTrack.Duration = 100000;
+    Check(extra.LookupRecordingMetadata(composerTrack) == null, "recording metadata duration mismatch skipped");
+    composerTrack.Duration = 208000;
     Check(extra.LookupMoods(composerTrack, "test-key")?.SequenceEqual(new[] { "happy", "calm" }) == true, "Last.fm mood whitelist");
     Check(extra.LookupMoods(composerTrack, null) == null, "mood lookup requires API key");
     if (Environment.GetEnvironmentVariable("MUSICENHANCER_LIVE_TEST") == "1")
@@ -206,10 +446,38 @@ try
     Console.WriteLine("All metadata tests passed.");
 
     object? Update() { updates++; return null; }
+    TrackFile FilterFile(object?[]? args)
+    {
+        var id = (int)args![0]!;
+        return new TrackFile { Id = id, Path = filterPaths.GetValueOrDefault(id, "") };
+    }
+    object? Watch() { fileNotifications++; return null; }
+    List<Track> LinkedTracks(object?[]? args)
+    {
+        var id = (int)args![0]!;
+        return filterTracks.Where(t => t.TrackFileId == id).Concat(id == sharedFile ? new[] { new Track { Id = 99 } } : Array.Empty<Track>()).ToList();
+    }
+    object? Delete(object?[]? args) { deleted.Add(((TrackFile)args![1]!).Id); return null; }
+    object? Unmonitor() { unmonitored++; return null; }
+    object? StartupFilter(object?[]? args)
+    {
+        startupFilterCount++;
+        if (((Album)args![1]!).Id == 10) throw new InvalidOperationException("synthetic album failure");
+        return null;
+    }
+    object? StartupMetadata() { startupMetadataCount++; return null; }
     string CopyFixture(string ext)
     {
         var target = Path.Combine(testDir, Guid.NewGuid() + "." + ext);
         System.IO.File.Copy(Path.Combine(AppContext.BaseDirectory, "fixtures", "sample." + ext), target);
+        return target;
+    }
+    string TrackFixture(string title)
+    {
+        var target = CopyFixture("mp3");
+        using var audio = TagLib.File.Create(target);
+        audio.Tag.Title = title;
+        audio.Save();
         return target;
     }
 }
@@ -246,10 +514,13 @@ public class FakeLookup : IExplicitLookupService
 public class FakeAdditionalLookup : IAdditionalMetadataLookupService
 {
     public string? Lyrics;
+    public RecordingMetadata? Recording;
+    public int RecordingCalls;
     public uint? LookupBpm(string? isrc, int durationMs) => null;
     public string? LookupLyrics(string? artist, string? album, string? title, int durationMs) => Lyrics;
     public string[]? LookupComposers(Track track) => null;
     public string[]? LookupMoods(Track track, string? apiKey) => null;
+    public RecordingMetadata? LookupRecordingMetadata(Track track) { RecordingCalls++; return Recording; }
 }
 
 public class LookupHandler : HttpMessageHandler
@@ -280,6 +551,8 @@ public class AdditionalLookupHandler : HttpMessageHandler
             ? "{\"toptags\":{\"tag\":[{\"name\":\"rock\"},{\"name\":\"Happy\"},{\"name\":\"calm\"}]}}"
             : uri.Host == "api.deezer.com"
             ? "{\"isrc\":\"USUM71703861\",\"duration\":208,\"bpm\":114.84}"
+            : uri.Host == "musicbrainz.org" && uri.AbsolutePath.Contains("/recording/") && uri.Query.Contains("tags")
+                ? "{\"id\":\"a0c9d75c-841e-4e8d-91d4-e20debfbc810\",\"length\":208000,\"artist-credit\":[{\"name\":\"First Artist\",\"artist\":{\"sort-name\":\"Artist, First\"}},{\"name\":\"Second Artist\",\"artist\":{\"sort-name\":\"Artist, Second\"}}],\"relations\":[{\"type\":\"performance\",\"work\":{\"id\":\"b0c9d75c-841e-4e8d-91d4-e20debfbc810\",\"title\":\"The Work\"}}],\"tags\":[{\"name\":\"rock\",\"count\":5},{\"name\":\"happy\",\"count\":1},{\"name\":\"ignored\",\"count\":0},{\"name\":\"bad;tag\",\"count\":2}]}"
             : uri.Host == "musicbrainz.org" && uri.AbsolutePath.Contains("/recording/")
                 ? "{\"id\":\"a0c9d75c-841e-4e8d-91d4-e20debfbc810\",\"length\":208000,\"relations\":[{\"type\":\"performance\",\"work\":{\"id\":\"b0c9d75c-841e-4e8d-91d4-e20debfbc810\"}}]}"
             : uri.Host == "musicbrainz.org"

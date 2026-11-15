@@ -32,8 +32,9 @@ public class MusicEnhancer : NotificationBase<MusicEnhancerSettings>
 
     public override ValidationResult Test()
     {
-        _logger.Info("MusicEnhancer: Test connection succeeded");
-        return Settings.Validate();
+        var result = Settings.Validate();
+        if (result.IsValid) _logger.Info("MusicEnhancer: Connection settings are valid");
+        return result;
     }
 
     public override void OnReleaseImport(AlbumDownloadMessage message)

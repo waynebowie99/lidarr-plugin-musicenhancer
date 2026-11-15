@@ -1,4 +1,5 @@
 @echo off
+cd /d "%~dp0"
 REM Lidarr Music Enhancer Plugin Build Script
 
 echo === Lidarr Music Enhancer Plugin Build ===
@@ -21,7 +22,7 @@ if %ERRORLEVEL% EQU 0 (
     echo   src\MusicEnhancer\bin\Debug\net8.0\Lidarr.Plugin.MusicEnhancer.dll
     echo.
     echo To install in Lidarr:
-    echo   1. Copy the DLL to Lidarr's Plugins folder
+    echo   1. Copy the DLL into plugins\waynebowie99\lidarr-plugin-musicenhancer\ under Lidarr's app-data directory
     echo   2. Restart Lidarr
     echo   3. Configure it in Lidarr's settings
 ) else (

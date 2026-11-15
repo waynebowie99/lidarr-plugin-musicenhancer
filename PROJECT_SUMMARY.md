@@ -1,5 +1,7 @@
 # Lidarr Music Enhancer Plugin - Summary
 
+> **Historical document:** The claims below about individual track monitoring and deletion defaults are outdated and can be unsafe. For current behavior, use the [README](README.md).
+
 ## What This Plugin Does
 
 The **Music Enhancer** plugin is a comprehensive Lidarr plugin for filtering remixes, edits, live versions, acoustic versions, and other alternate versions of tracks. It helps you keep only the clean/original versions you want while automatically managing versions you don't care about.

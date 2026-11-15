@@ -1,5 +1,7 @@
 # Lidarr Music Enhancer Plugin
 
+> **Historical document:** The claims below about individual track monitoring and deletion defaults are outdated and can be unsafe. For current behavior, use the [README](README.md).
+
 A comprehensive Lidarr plugin for filtering remixes, edits, live versions, acoustic versions, and other alternate versions of tracks. Keep only the clean/original versions you want.
 
 ## Project Structure

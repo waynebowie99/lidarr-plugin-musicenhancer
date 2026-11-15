@@ -21,16 +21,16 @@ public static class LyricsSidecarWriter
         if (audio.GetTag(TagTypes.Id3v2) is TagLib.Id3v2.Tag id3 && id3.GetFrames<SynchronisedLyricsFrame>().Any()) return true;
         if (audio.GetTag(TagTypes.Xiph) is XiphComment xiph &&
             new[] { "LYRICS", "SYNCEDLYRICS", "UNSYNCEDLYRICS" }.Any(key => xiph.GetField(key).Length > 0)) return true;
-        if (audio.GetTag(TagTypes.Apple) is AppleTag apple &&
-            (apple.GetDashBox("com.apple.iTunes", "LYRICS") != null || apple.GetDashBox("com.apple.iTunes", "SYNCEDLYRICS") != null)) return true;
+        if (audio.GetTag(TagTypes.Apple) is AppleTag apple && AppleTagHelpers.HasFreeform(apple, "LYRICS", "SYNCEDLYRICS", "UNSYNCEDLYRICS")) return true;
         return false;
     }
 
-    public static bool WriteIfMissing(string path, string lyrics)
+    public static bool WriteIfMissing(string path, string lyrics, Action? beforeSave = null)
     {
         if (string.IsNullOrWhiteSpace(lyrics) || HasLyrics(path)) return false;
         try
         {
+            beforeSave?.Invoke();
             using var stream = new FileStream(Path.ChangeExtension(path, ".lrc"), FileMode.CreateNew, FileAccess.Write, FileShare.Read);
             using var writer = new StreamWriter(stream, new UTF8Encoding(false));
             writer.Write(lyrics);

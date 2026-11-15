@@ -1,196 +1,65 @@
 # Music Enhancer
 
-A Lidarr plugin that automatically identifies and filters remixes, edits, live versions, acoustic versions, and other alternate versions of tracks. Keep only the clean/original versions you want while unmonitoring versions you don't care about.
-
-Also includes opt-in **metadata enhancement** and explicit/clean advisory tagging, using Lidarr's track associations and optional online lookups.
-
-## Features
-
-- **Remix Detection**: Automatically identify remixes, edits, bootlegs, reinterpretations, and reworks
-- **Edit Detection**: Find radio edits, album edits, single edits, and other edited versions
-- **Live Version Detection**: Identify live recordings vs studio versions
-- **Acoustic Version Detection**: Find acoustic versions vs original recordings
-- **Demo Detection**: Identify demo versions vs final releases
-- **Commentary Detection**: Identify commentary tracks (`Commentary`, `Album Commentary`, `Track Commentary`, etc.)
-- **Version Filtering**: Detect version markers like "Version", "Alternative Version", etc.
-- **Track-Level Unmonitoring**: Unmonitor individual tracks within an album (not just entire albums)
-- **Advisory Tag Support**: Add missing explicit/clean ratings to MP4/M4A, FLAC, MP3, OGG and Opus files
-- **Missing Metadata**: Fill supported missing fields from Lidarr; optionally look up composers, BPM, mood and lyrics
-- **Configurable**: Customize which release types to filter and which version types to detect
-- **Flexible Actions**: Choose to flag for review, unmonitor, or skip detected versions
-
-## Requirements
-
-- **Lidarr nightly branch** — plugin support is not available in the stable release channel.
+A Lidarr plugin that detects selected alternate versions and optionally fills missing audio metadata. It supports Lidarr's plugin framework and runs after release imports or, if enabled, on startup.
 
 ## Installation
 
-1. Open Lidarr and go to **System → Plugins** (or **Settings → General → Plugins** on some builds)
+1. In Lidarr, open **System → Plugins** and install `https://github.com/waynebowie99/lidarr-plugin-musicenhancer`.
+2. Restart Lidarr, then add **Music Enhancer** in **Settings → Connect**.
+3. Check **On Release Import** to process newly imported releases. Optionally enable **Scan library on startup** and restart to process existing monitored artists and albums.
 
-2. Paste the repository URL:
+Lidarr must support plugins. The plugin targets .NET 8 and is built against Lidarr 3.1.6.5079; it has also been smoke-tested against 3.2.1.5196. For a manual install, extract the release ZIP into `/config/plugins/waynebowie99/lidarr-plugin-musicenhancer/` (or the equivalent app-data directory), then restart Lidarr.
 
+## Version filtering and file safety
+
+**Version filter action** defaults to **Flag for review**: matching tracks are written to Lidarr's log and are not deleted or unmonitored. **Skip** disables version filtering. Metadata processing, if enabled, is independent of this action.
+
+With **Unmonitor**:
+
+- An album is unmonitored only if **every known track is downloaded and matches** an enabled filter. Albums with unmatched or undownloaded tracks remain monitored.
+- Lidarr does **not** support monitoring individual tracks. Mixed albums remain monitored, so Lidarr may download a removed track again.
+- **Delete matched track files** is off by default for new connections. If enabled, only matched, unshared files are deleted via Lidarr's deletion service; unmatched files are never deleted. Existing connections retain their previous saved deletion setting, so check it after updating.
+- Before an unmonitor or delete action, the audio file must be inside the artist folder without a symlink in that path and have either the same version-marked title as Lidarr (ignoring case and surrounding whitespace) or the same MusicBrainz recording ID. Shared files, missing files and conflicting or unverified recordings are skipped. This conservative check can leave some real versions for manual review.
+
+Back up your library and review the logs before enabling deletion. Deletion may be permanent if Lidarr's recycle bin is not configured. Detection is based on title markers, not audio analysis, and can miss or misclassify unusual titles.
+
+By default, the plugin examines albums and EPs. **Release types to filter** accepts comma-separated `Album`, `EP`, `Single` and `Compilation`. Short tracks are ignored according to the duration settings, except commentary tracks, which are often short.
+
+Examples include `Song (Remix)`, `Song (Radio Edit)`, `Song (Live at Wembley)`, `Song (Acoustic)`, `Song (Demo)` and `Album Commentary`. Ordinary titles such as `Alive`, `Credit` and `Song (Remastered 2011)` are not treated as versions. **Keep clean versions** defaults on: clean title markers and embedded clean advisory tags are preserved unless commentary is separately identified. If a candidate file's advisory cannot be inspected, it is skipped while this protection is enabled.
+
+## Metadata
+
+All changes require **Enable metadata processing** and **Enable metadata writing**. New or previously unset opt-ins default off; previously enabled settings remain unchanged. **Fill missing library tags** enables the Lidarr metadata fields listed below. Existing values are preserved; unknown or ambiguous data is left untouched. Supported formats are MP3, FLAC, OGG, Opus, M4A and MP4. Files outside the artist folder, reached through a symlink within it, mapped to multiple Lidarr tracks or with a conflicting embedded recording ID are skipped.
+
+Back up files before enabling metadata writes. If a file is hard-linked elsewhere, modifying its tags may also affect the other link.
+
+| Source | Available fields | Setting |
+| --- | --- | --- |
+| Lidarr | Title, artist, album and album artist, artist sort where known, genres, track/disc numbers and counts, year, label, release and recording IDs, release type/status, country, media type, disc subtitle, edition, original release year and compilation | Fill missing library tags |
+| MusicBrainz | Recording artist credits, single linked work, public community track tags and recognized moods | Look up recording metadata online |
+| MusicBrainz | Composer credits explicitly identified on linked works | Look up composers online |
+| MusicBrainz and Deezer | Explicit/clean advisory; BPM via ISRC and duration checks | Look up explicit status online; Look up BPM online |
+| Last.fm | A small set of recognizable community mood labels | Look up mood online; requires a Last.fm API key |
+| LRCLIB | Matching synced or plain lyrics as a new `.lrc` sidecar | Look up lyrics online |
+
+The optional online lookups send recording IDs, ISRCs or track details to the named services. They can take a long time on large libraries. Except for Last.fm mood lookup, no API key is required. Lyrics require matching artist, album, title and duration; existing embedded lyrics and `.lrc` files are preserved. MusicBrainz community tags are public user-submitted labels, not personal ratings. Existing legacy API-key settings are retained for compatibility but are unused.
+
+**Explicit tagging** uses Lidarr's positive explicit flag, clean-title markers and optional online lookups. A false Lidarr flag or a Deezer “not explicit” result does not prove a track is a clean edit. MP3/FLAC/OGG/Opus use `ITUNESADVISORY=1` for explicit and `2` for clean; MP4 uses `rtng=4` and `2` respectively. Unknown ratings are not written.
+
+Symfonium supports more fields than these sources expose. Personal ratings, favorites, comments and other user-defined values are never invented or changed. Style, occasion, track language, movement details and many other fields are not automatically populated without a reliable source.
+
+### Jellyfin and Symfonium
+
+After processing, refresh the Jellyfin music library and sync the provider in Symfonium. Symfonium's [provider feature matrix](https://docs.symfonium.app/wiki/providers/supported-features-by-media-providers/) lists Jellyfin support for multiple artists and genres, but not dedicated composer, BPM, album mood or style fields. Writing a file tag alone does not guarantee it appears through Jellyfin.
+
+The third-party [Jellyfin MusicTags plugin](https://github.com/jyourstone/jellyfin-musictags-plugin) can expose selected file fields as **generic Jellyfin tags**, which are not necessarily dedicated Symfonium fields. For example:
+
+```text
+GENRE,MOOD,BPM,COMPOSER,STYLE,LANGUAGE,ITUNESADVISORY,ADVISORY,TRACK_TAGS,WORK,CONTENTGROUP,RELEASETYPE,RELEASESTATUS,RELEASECOUNTRY,COUNTRY,ALBUMVERSION,MEDIA,MEDIATYPE,DISCSUBTITLE,SETSUBTITLE,ORIGINALDATE,COMPILATION,LABEL,PUBLISHER,KEY
 ```
-https://github.com/waynebowie99/lidarr-plugin-musicenhancer
-```
 
-3. Click **Install**
+Set its value delimiter to `;` initially and leave overwrite/cleanup options disabled until you have reviewed the results. A separate SMB or WebDAV provider in Symfonium uses its own file-tag parser and may expose more fields. Partially populated MusicBrainz IDs can split albums in file providers; review Symfonium's parser settings if needed.
 
-4. Lidarr will download the plugin and restart
+## Development
 
-### Manual Installation (for development builds)
-
-1. Download the Lidarr reference assemblies: `python scripts/prepare-lidarr.py`
-2. Build the plugin: `dotnet build src/MusicEnhancer/MusicEnhancer.csproj -c Release`
-3. Copy `src/MusicEnhancer/bin/Release/net8.0/Lidarr.Plugin.MusicEnhancer.dll` to Lidarr's Plugins folder
-4. Restart Lidarr
-
-## Configuration
-
-After installation, add a Music Enhancer connection:
-
-1. Go to **Settings → Connect**
-2. Click the **+** button to add a new connection
-3. Select **Music Enhancer** from the list
-4. Configure the settings (see below) and click **Save**
-
-### Settings
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| **Version filter action** | Flag for review | What to do when versions are detected. Options: Flag for review, Unmonitor, Skip |
-| **Release types to filter** | `Album, EP` | Comma-separated release types to apply filtering to |
-| **Duration tolerance (ms)** | 3000 | Maximum duration difference for matching (±3 seconds) |
-| **Enable remix filtering** | On | Filter remixes, edits, bootlegs, reinterpretations |
-| **Enable version filtering** | On | Filter version markers |
-| **Enable live version filtering** | On | Filter live versions |
-| **Enable acoustic filtering** | On | Filter acoustic versions |
-| **Enable edit filtering** | On | Filter edit versions |
-| **Keep clean versions** | On | Keep tracks marked Clean, Clean Version, Clean Edit, etc. instead of filtering them as edits or versions |
-| **Enable demo filtering** | On | Filter demo versions |
-| **Enable commentary filtering** | On | Filter commentary tracks (Commentary, Album Commentary, Track Commentary, etc.) |
-| **Minimum track duration (ms)** | 30000 | Minimum track duration in milliseconds (30 seconds) |
-| **Maximum track duration (ms)** | 600000 | Maximum track duration in milliseconds (10 minutes) |
-| **Delete files after unmonitor** | On | Delete media files after unmonitoring a version. Defaults to true (delete files). |
-| **Enable metadata processing** | Off | Allow changes to audio file tags. Explicit opt-in is required even for existing connections. |
-| **Enable explicit tagging** | On | Enable explicit/clean advisory tagging when metadata processing and writing are also enabled. |
-| **Enable metadata writing** | On | Allow writing advisory tags when metadata processing and explicit tagging are enabled. |
-| **Look up explicit status online** | Off | Use MusicBrainz and Deezer for missing ratings without an API key. |
-| **Fill missing library tags** | Off | Fill missing standard audio tags from Lidarr; preserve existing fields. |
-| **Look up BPM online** | Off | Use a file ISRC or MusicBrainz recording ID and Deezer for BPM; requires library tagging. |
-| **Look up composers online** | Off | Use MusicBrainz work composer credits; requires library tagging. |
-| **Look up mood online** | Off | Use a small set of recognized Last.fm mood tags; requires library tagging and a Last.fm API key. |
-| **Look up lyrics online** | Off | Fetch matching LRCLIB lyrics and create a missing `.lrc` sidecar. |
-| **Scan library on startup** | Off | Run the version filter and enabled metadata tagging over existing monitored albums when Lidarr starts. |
-
-### Explicit and Clean Metadata
-
-1. Back up your music files before enabling writes. In **Settings → Connect → Music Enhancer**, check **Enable metadata processing**, **Enable explicit tagging**, and **Enable metadata writing**.
-2. To identify more tracks, check **Look up explicit status online**. This sends Lidarr's MusicBrainz recording IDs to MusicBrainz, and ISRCs to Deezer when needed. It requires no API key. MusicBrainz requests are rate limited, so a large scan can take a long time.
-3. Check **On Release Import** to process newly imported releases, and optionally **Scan library on startup** to process existing monitored albums after a restart. Startup filtering uses the configured version filter action independently; review deletion settings first.
-
-Lidarr's per-track `Explicit` flag, unambiguous clean-title markers and exact MusicBrainz recording disambiguations can provide a rating. When an online lookup has no such MusicBrainz rating, MusicBrainz ISRCs are checked against Deezer's public catalog, with duration and conflicting-result checks. A Deezer "not explicit" result is **not** treated as proof of a censored clean edit. Missing or ambiguous data is left untouched; Lidarr's `false` flag can also mean unknown. Some versions of Lidarr do not populate the explicit flag at all.
-
-Existing advisory tags are never overwritten. Shared files mapped to multiple tracks and unsupported formats are skipped. The plugin writes `ITUNESADVISORY=1` (explicit) or `2` (clean) in ID3v2 or Vorbis comments, and `rtng=4` (explicit) or `2` (clean) in MP4.
-
-### Additional Metadata and Jellyfin
-
-**Enable metadata processing** and **Enable metadata writing** are required for all metadata changes. Enable **Fill missing library tags** to copy missing title, artist, album artist, album, genre, track/disc numbers, release year, label and available MusicBrainz identifiers and release type/status from Lidarr. Existing values are not overwritten. Lidarr's own audio-tag writer may also be configured separately; this plugin does not force it or scrub tags.
-
-Optional lookups are off by default:
-- **BPM**: checks Deezer by a file ISRC or a single ISRC from MusicBrainz; missing, ambiguous or mismatched recordings are skipped. No API key.
-- **Composer**: MusicBrainz recording-to-work relationships and explicit composer credits. No API key. Generic writer or lyricist credits are not assumed to be composers.
-- **Mood**: a small whitelist of recognizable Last.fm community mood tags using the track's MusicBrainz recording ID; requires a Last.fm API key. Community tags are subjective and may be absent. Existing mood values are preserved.
-- **Lyrics**: LRCLIB lookup by track artist, album, title and duration. Exact case-insensitive matches only; missing or ambiguous matches are skipped. Creates a new `.lrc` sidecar, preferring synced lyrics when available. Existing sidecars and embedded lyrics are preserved. No API key.
-
-Online lookups send the relevant identifiers or track information to their respective services. Enabling them can make library scans much slower. Discogs and AcoustID settings are currently unused. Ratings, favorites and other personal fields are never generated or changed.
-
-After changes, refresh the Jellyfin music library and sync the provider in Symfonium. Symfonium's [provider feature matrix](https://docs.symfonium.app/wiki/providers/supported-features-by-media-providers/) lists Jellyfin support for multiple artists and genres, but not composers, track BPM, album mood or style; writing those fields does not make them appear through the Jellyfin provider. Lyrics and advisory display depend on Jellyfin and client support. A Symfonium file provider such as SMB can read additional file tags, but is a separate library source. For file providers, partially populated MusicBrainz IDs can split albums; review Symfonium's parser settings if needed.
-
-## How It Works
-
-When you import an album or EP, Music Enhancer analyzes all tracks to identify versions.
-
-To apply the filter to albums that were already in your library, enable **Scan library on startup** in the Music Enhancer connection. The scan runs in the background each time Lidarr starts.
-
-1. **Remix Detection**: Looks for remix, edit, bootleg, reinterpretation, rework, remake, etc. in track titles
-2. **Edit Detection**: Identifies radio edits, album edits, single edits, extended versions, etc.
-3. **Live Version Detection**: Finds live recordings vs studio versions
-4. **Acoustic Detection**: Identifies acoustic versions vs original recordings
-5. **Demo Detection**: Finds demo versions vs final releases
-6. **Version Detection**: Identifies version markers like "Version", "Alternative Version", etc.
-
-### Clean Versions
-
-Clean versions are explicit-free versions of a song, not alternate edits. When **Keep clean versions** is enabled (the default), titles such as `Song (Clean)`, `Song (Clean Version)`, or `Song [Clean Edit]` are left alone while other edits (`Radio Edit`, `Album Edit`, etc.) are still filtered.
-
-Uncheck **Keep clean versions** if you want clean versions treated like any other edit.
-
-### Track-Level Unmonitoring
-
-**Key Feature**: Music Enhancer can now unmonitor individual tracks within an album, not just entire albums!
-
-When a mixed album contains both original tracks and versions:
-- **Original tracks**: Remain monitored and downloaded
-- **Version tracks**: Are unmonitored and optionally deleted
-
-This is perfect for albums like:
-- "Greatest Hits" with both original songs and remixes
-- Deluxe editions with bonus tracks and alternate versions
-- Compilations with mixed content
-
-### Decision Logic
-
-- **All tracks are versions**: The entire release is unmonitored and files are deleted (unless disabled in settings)
-- **Mixed content (some originals + some versions)**: Only version tracks are unmonitored, originals remain
-- **No versions found**: Release is left as-is
-
-The **Delete files after unmonitor** setting controls whether media files are deleted after unmonitoring:
-- **Enabled (default)**: Files are deleted after unmonitoring
-- **Disabled**: Only the track/album is unmonitored, files remain on disk
-
-## Example Scenarios
-
-**Scenario 1: Remix Single**
-- Track 1: "Song Name (Remix)" 
-- Track 2: "Song Name (Extended Mix)"
-- Track 3: "Song Name (Bootleg)"
-
-Result: All tracks identified as versions → Release unmonitored and files deleted (unless disabled in settings)
-
-**Scenario 2: Mixed Album with Originals + Versions**
-- Track 1: "Song Name" (original) - **Remains monitored**
-- Track 2: "Song Name (Acoustic)" (version) - **Unmonitored**
-- Track 3: "Another Song" (original) - **Remains monitored**
-- Track 4: "Third Song (Live)" (version) - **Unmonitored**
-
-Result: Only the 2 version tracks are unmonitored; the 2 original tracks remain in your library
-
-**Scenario 3: Deluxe Edition**
-- Track 1-10: Original album tracks - **Remain monitored**
-- Track 11-15: Bonus tracks (remixes/edits) - **Unmonitored**
-
-Result: Original album remains, bonus versions are removed
-
-**Scenario 4: Original Album**
-- Track 1: "Song Name"
-- Track 2: "Another Song"
-- Track 3: "Third Track"
-
-Result: No versions found → Release left as-is
-
-## Known Issues
-
-- **Requires Lidarr nightly branch.** Plugin support is not available in the stable release channel.
-
-## Related
-
-- [Tubifarry's QueueCleaner](https://github.com/Tubifarry/Lidarr.Plugins.QueueCleaner) - Similar plugin for queue management
-- [Unique Singles](https://github.com/jtstothard/lidarr-plugin-uniquesingles) - Plugin for removing duplicate singles
-
-## Support
-
-If you find this plugin useful, consider supporting the development.
-
-## License
-
-MIT
+See [DEVELOPMENT.md](DEVELOPMENT.md) for building and testing. The plugin builds against verified, prebuilt Lidarr DLLs; it does not require the Lidarr source tree.

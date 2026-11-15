@@ -1,93 +1,15 @@
-# Lidarr Music Enhancer Plugin
+# Development
 
-This is a Lidarr plugin for filtering remixes, edits, live versions, acoustic versions, and other alternate versions of tracks.
-
-## Project Structure
-
-```
-MusicEnhancer/
-├── src/
-│   └── MusicEnhancer/
-│       ├── MusicEnhancerPlugin.cs       # Plugin entry point
-│       ├── ContentFilterSettings.cs     # Plugin configuration
-│       ├── ContentFilterOptions.cs      # Runtime options
-│       ├── ContentFilterService.cs      # Main filtering service
-│       ├── VersionMatcher.cs            # Version detection logic
-│       ├── TitleNormalizer.cs           # Title normalization
-│       └── MusicEnhancer.csproj         # Project file
-├── README.md                            # User documentation
-└── LICENSE                              # MIT License
-```
-
-## Development
-
-### Requirements
-
-- .NET 8.0 SDK
-- Python 3 (to download the Lidarr reference assemblies)
-- Lidarr nightly build (for testing)
-
-### Building
-
-1. Download the verified Lidarr reference assemblies:
+Requirements: .NET 8 SDK and Python 3. The plugin builds against verified prebuilt Lidarr assemblies, without a Lidarr submodule.
 
 ```bash
-python scripts/prepare-lidarr.py
+python3 scripts/prepare-lidarr.py
+dotnet build src/MusicEnhancer/MusicEnhancer.csproj -c Release
+dotnet run --project tests/MusicEnhancer.Tests/MusicEnhancer.Tests.csproj -c Release
 ```
 
-2. Build the plugin:
+Windows can use `python` instead of `python3`. Release builds produce the DLL and `Lidarr.Plugin.MusicEnhancer.net8.0.zip` in `src/MusicEnhancer/bin/Release/net8.0/`. The release workflow runs the offline tests before publishing.
 
-```bash
-dotnet build src/MusicEnhancer/MusicEnhancer.csproj
-```
+Tests cover metadata round trips, preservation, online lookup responses, startup behavior, title matching and destructive-action safety. `MUSICENHANCER_LIVE_TEST=1` enables optional network-dependent checks; the regular suite does not require external services.
 
-Alternatively, run `build.sh` (Linux/macOS) or `build.bat` (Windows), which performs both steps.
-
-### Testing
-
-The plugin uses Lidarr's plugin framework. Test by:
-
-1. Building the plugin
-2. Copying the DLL to Lidarr's Plugins folder
-3. Restarting Lidarr
-4. Configuring the plugin in Settings → Connect
-
-## Version Detection Logic
-
-The plugin uses pattern matching to identify different version types:
-
-### Remix Detection
-- Remix, Edit, Bootleg, Reinterpretation, Rework, Remake
-- Extended Mix, Club Mix, Dance Mix, House Mix, Techno Mix, Trance Mix, Dub Mix
-- Instrumental, Flip
-
-### Edit Detection
-- Edit, Radio Edit, Album Edit, Single Edit, Short Edit
-- Compact Edit, Clean Edit, Intro Edit, Outro Edit, Cut
-- Extended, Extended Version
-
-### Version Detection
-- Version, Alternative Version, Alternate Version, Different Version
-- Special Version, Unique Version, Exclusive Version
-
-### Live Version Detection
-- Live, Live Version, Live At, Live From, Live In, Live On
-- Acoustic Live, Electric Live, Unplugged
-
-### Acoustic Detection
-- Acoustic, Acoustic Version, Unplugged
-
-### Demo Detection
-- Demo, Demo Version, Demo Recording, Demo Session, Demo Take
-
-## Track-Level Unmonitoring
-
-A key feature of Music Enhancer is the ability to unmonitor individual tracks within an album:
-
-- When a mixed album contains both original tracks and versions, only the version tracks are unmonitored
-- Original tracks remain monitored and downloaded
-- This is perfect for albums like "Greatest Hits" or "Deluxe Editions"
-
-## License
-
-MIT License - See LICENSE file for details
+`MusicEnhancerConnection` handles imports; `MusicEnhancerStartupService` handles opt-in startup scans. `ContentFilterService` applies version actions and `MetadataEnhancerService` handles opt-in tag writing. See the [README](README.md) for supported fields, limitations and safety behavior.

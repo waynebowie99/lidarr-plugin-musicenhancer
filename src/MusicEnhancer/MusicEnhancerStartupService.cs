@@ -39,21 +39,24 @@ public class MusicEnhancerStartupService : IHandleAsync<ApplicationStartedEvent>
 
     public void HandleAsync(ApplicationStartedEvent message)
     {
-        var definition = _notificationFactory.All()
-            .FirstOrDefault(d => string.Equals(d.Implementation, nameof(MusicEnhancer), StringComparison.OrdinalIgnoreCase));
+        var definitions = _notificationFactory.All()
+            .Where(d => string.Equals(d.Implementation, nameof(MusicEnhancer), StringComparison.OrdinalIgnoreCase) &&
+                        d.Settings is MusicEnhancerSettings { ScanLibraryOnStartup: true })
+            .ToList();
 
-        if (definition?.Settings is not MusicEnhancerSettings settings)
+        if (definitions.Count == 0)
         {
-            _logger.Debug("MusicEnhancer: No connection configured; skipping startup scan");
+            _logger.Debug("MusicEnhancer: No connection has startup scanning enabled");
             return;
         }
 
-        if (!settings.ScanLibraryOnStartup)
+        if (definitions.Count > 1)
         {
-            _logger.Debug("MusicEnhancer: 'Scan library on startup' is disabled; skipping startup scan");
+            _logger.Warn("MusicEnhancer: Multiple connections have startup scanning enabled; skipping to avoid conflicting settings. Enable it on only one connection.");
             return;
         }
 
+        var settings = (MusicEnhancerSettings)definitions[0].Settings;
         var options = settings.ToFilterOptions();
         var artistsScanned = 0;
         var albumsScanned = 0;
@@ -71,11 +74,25 @@ public class MusicEnhancerStartupService : IHandleAsync<ApplicationStartedEvent>
 
                 artistsScanned++;
 
-                foreach (var album in _albumService.GetAlbumsByArtist(artist.Id).Where(a => a.Monitored))
+                try
                 {
-                    _contentFilterService.FilterContentForArtist(artist, album, options);
-                    _metadataEnhancerService.EnhanceMetadataForArtist(artist, album, options);
-                    albumsScanned++;
+                    foreach (var album in _albumService.GetAlbumsByArtist(artist.Id).Where(a => a.Monitored))
+                    {
+                        try
+                        {
+                            _contentFilterService.FilterContentForArtist(artist, album, options);
+                            _metadataEnhancerService.EnhanceMetadataForArtist(artist, album, options);
+                            albumsScanned++;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.Error(ex, "MusicEnhancer: Startup processing failed for album '{0}'", album.Title);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(ex, "MusicEnhancer: Startup processing failed for artist '{0}'", artist.Name);
                 }
             }
         }

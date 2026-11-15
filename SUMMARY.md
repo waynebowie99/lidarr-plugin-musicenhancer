@@ -1,5 +1,7 @@
 # Lidarr Content Filter Plugin
 
+> **Historical document:** The claims below may describe behavior that no longer exists. For current behavior and safety instructions, use the [README](README.md).
+
 A comprehensive Lidarr plugin for filtering remixes, edits, live versions, acoustic versions, and other alternate versions of tracks. Keep only the clean/original versions you want.
 
 ## Overview

@@ -6,78 +6,63 @@ using NzbDrone.Core.Music;
 
 namespace NzbDrone.Core.Plugins;
 
-/// <summary>
-/// Service for matching tracks to version types.
-/// </summary>
+/// <summary>Conservative title-marker matching; ordinary words inside song names are not versions.</summary>
 public static class VersionMatcher
 {
-    private static readonly Dictionary<VersionType, string[]> VersionPatterns = new Dictionary<VersionType, string[]>
-    {
-        { VersionType.Remix, new[] { "remix", "bootleg", "reinterpretation", "rework", "flip", "mashup", "remake" } },
-        { VersionType.Edit, new[] { "edit", "radio edit", "album edit", "remaster", "remastered" } },
-        { VersionType.Version, new[] { "version", "alternative version", "extended version", "short version", "single version" } },
-        { VersionType.Live, new[] { "live", "live version", "live at", "live from", "acoustic live" } },
-        { VersionType.Acoustic, new[] { "acoustic", "acoustic version", "unplugged" } },
-        { VersionType.Demo, new[] { "demo", "demo version", "demo recording" } }
-    };
-
-    // Clean edits are a separate category: they are explicit-free versions of a
-    // song, not alternate edits. Match common forms like "(Clean)",
-    // "[Clean Version]", "Clean Edit" and "- Clean".
-    private static readonly Regex CommentaryPattern =
-        new(@"\bcommentary\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private const RegexOptions Options = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled;
+    private static readonly Regex Commentary = new(@"\bcommentary\s*$", Options);
+    private static readonly Regex Original = new(@"^\s*original\s+(?:version|mix)\s*$", Options);
+    private static readonly Regex Qualifiers = new(@"\((?<marker>[^()]*)\)|\[(?<marker>[^\[\]]*)\]|\s[-–—]\s*(?<marker>[^\[\]()]*)$", Options);
+    private static readonly Regex Suffix = new(@"\s+(?<marker>(?:radio|album|single|extended|club|instrumental)\s+edit|(?:extended|alternative|alternate|short|single|album|live|acoustic|demo)\s+version|extended\s+mix|live\s+(?:at|from)\s+.+|remix|bootleg|mashup|rework|unplugged)\s*$", Options);
 
     private static readonly Regex[] CleanPatterns =
     {
-        new(@"\(\s*clean(?:\s+(?:version|edit|mix|album|radio|single))?\s*\)", RegexOptions.IgnoreCase | RegexOptions.Compiled),
-        new(@"\[\s*clean(?:\s+(?:version|edit|mix|album|radio|single))?\s*\]", RegexOptions.IgnoreCase | RegexOptions.Compiled),
-        new(@"\bclean\s+(?:version|edit|mix|album|radio|single)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled),
-        new(@"\s-\s*clean(?:\s+(?:version|edit|mix|album|radio|single))?\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled)
+        new(@"\(\s*clean(?:\s+(?:version|edit|mix|album|radio|single))?\s*\)", Options),
+        new(@"\[\s*clean(?:\s+(?:version|edit|mix|album|radio|single))?\s*\]", Options),
+        new(@"\bclean\s+(?:version|edit|mix|album|radio|single)\b", Options),
+        new(@"\s[-–—]\s*clean(?:\s+(?:version|edit|mix|album|radio|single))?\s*$", Options)
     };
 
-    public static VersionMatchResult? MatchVersion(Track track, MusicEnhancerOptions options)
+    private static readonly (VersionType Type, Regex Pattern)[] VersionPatterns =
     {
-        if (track == null)
+        (VersionType.Remix, new Regex(@"\b(?:remix|bootleg|reinterpretation|rework|flip|mashup|remake)\b", Options)),
+        (VersionType.Edit, new Regex(@"\bedit\b", Options)),
+        (VersionType.Live, new Regex(@"^live(?:\s+(?:at|from|in|on|version|recording|performance)\b.*)?$", Options)),
+        (VersionType.Acoustic, new Regex(@"^(?:acoustic|unplugged)(?:\s+(?:version|mix|performance|session|live)\b.*)?$", Options)),
+        (VersionType.Demo, new Regex(@"^demo(?:\s+(?:version|recording|mix)\b.*)?$", Options)),
+        (VersionType.Version, new Regex(@"\bversion\b|\bextended\s+mix\b", Options))
+    };
+
+    public static VersionMatchResult? MatchVersion(Track track)
+    {
+        ArgumentNullException.ThrowIfNull(track);
+        if (string.IsNullOrWhiteSpace(track.Title)) return null;
+
+        var title = track.Title.Trim();
+        var markers = new List<string>();
+        foreach (Match match in Qualifiers.Matches(title))
         {
-            throw new ArgumentNullException(nameof(track));
+            markers.Add(match.Groups["marker"].Value.Trim());
         }
+        var suffix = Suffix.Match(title);
+        if (suffix.Success) markers.Add(suffix.Groups["marker"].Value.Trim());
 
-        if (options == null)
+        if (Commentary.IsMatch(title) || markers.Any(marker => Commentary.IsMatch(marker)))
         {
-            throw new ArgumentNullException(nameof(options));
+            return new VersionMatchResult(VersionType.Commentary, "Detected commentary marker");
         }
-
-        if (string.IsNullOrEmpty(track.Title))
-        {
-            return null;
-        }
-
-        var title = track.Title.ToLowerInvariant();
-
-        if (CommentaryPattern.IsMatch(title))
-        {
-            return new VersionMatchResult(track.Title, default, VersionType.Commentary, 0.95, "Detected commentary track");
-        }
-
-        // Check clean markers before the edit/version patterns so "Clean Edit"
-        // is not classified as a regular edit and "Clean Version" is not
-        // classified as a version.
         if (CleanPatterns.Any(pattern => pattern.IsMatch(title)))
         {
-            return new VersionMatchResult(track.Title, default, VersionType.Clean, 0.95, "Detected clean version marker");
+            return new VersionMatchResult(VersionType.Clean, "Detected clean version marker");
         }
 
-        foreach (var kvp in VersionPatterns)
+        foreach (var marker in markers.Where(marker => !Original.IsMatch(marker)))
         {
-            foreach (var pattern in kvp.Value)
+            foreach (var (type, pattern) in VersionPatterns)
             {
-                if (title.Contains(pattern))
-                {
-                    return new VersionMatchResult(track.Title, default, kvp.Key, 0.95, $"Detected {kvp.Key} version based on title pattern");
-                }
+                if (pattern.IsMatch(marker)) return new VersionMatchResult(type, $"Detected {type} title marker");
             }
         }
-
         return null;
     }
 }

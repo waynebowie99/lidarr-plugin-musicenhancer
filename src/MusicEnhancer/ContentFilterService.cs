@@ -53,7 +53,8 @@ public class ContentFilterService : IContentFilterService
 
         var albumType = string.IsNullOrWhiteSpace(importedAlbum.AlbumType) ? "Album" : importedAlbum.AlbumType;
 
-        if (!options.ReleaseTypesToFilter.Contains(albumType))
+        var isCompilation = importedAlbum.SecondaryTypes?.Any(t => string.Equals(t.Name, "Compilation", StringComparison.OrdinalIgnoreCase)) == true;
+        if (!options.ReleaseTypesToFilter.Contains(albumType) && !(isCompilation && options.ReleaseTypesToFilter.Contains("Compilation")))
         {
             _logger.Debug("MusicEnhancer: Skipping album '{AlbumTitle}' because release type '{AlbumType}' is not enabled for filtering", importedAlbum.Title, albumType);
             return;
@@ -79,20 +80,34 @@ public class ContentFilterService : IContentFilterService
                 return;
             }
 
-            var tracksInDurationRange = tracksWithFiles
-                .Where(t => t.Duration >= options.MinimumTrackDurationMs && t.Duration <= options.MaximumTrackDurationMs)
-                .ToList();
-
             var versionTracks = new List<Track>();
 
-            foreach (var track in tracksInDurationRange)
+            foreach (var track in tracksWithFiles)
             {
-                var versionInfo = VersionMatcher.MatchVersion(track, options);
+                var versionInfo = VersionMatcher.MatchVersion(track);
 
-                if (versionInfo != null && versionInfo.VersionType != VersionType.None)
+                // Commentary often consists of very short spoken interludes.
+                if (versionInfo?.VersionType != VersionType.Commentary &&
+                    (track.Duration < options.MinimumTrackDurationMs || track.Duration > options.MaximumTrackDurationMs))
+                {
+                    continue;
+                }
+
+                if (versionInfo != null)
                 {
                     if (ShouldFilterVersion(versionInfo.VersionType, options))
                     {
+                        if (!HasCompatibleFile(track)) continue;
+                        if (options.KeepCleanVersions && versionInfo.VersionType != VersionType.Commentary && HasCleanAdvisory(track) != false)
+                        {
+                            _logger.Debug("MusicEnhancer: Preserving track '{0}' with a clean or unverified advisory", track.Title);
+                            continue;
+                        }
+                        if (options.VersionFilterAction == VersionFilterAction.Unmonitor && !HasVerifiedVersion(artist, track, versionInfo.VersionType))
+                        {
+                            _logger.Warn("MusicEnhancer: File for '{0}' has no matching version marker or recording ID; leaving it unchanged", track.Title);
+                            continue;
+                        }
                         versionTracks.Add(track);
                         _logger.Info("MusicEnhancer: Track '{TrackTitle}' detected as {VersionType} - {Reason}", track.Title, versionInfo.VersionType, versionInfo.Reason);
                     }
@@ -105,16 +120,16 @@ public class ContentFilterService : IContentFilterService
                 return;
             }
 
-            if (options.VersionFilterAction == VersionFilterAction.FlagOnly)
+            if (options.VersionFilterAction != VersionFilterAction.Unmonitor)
             {
                 _logger.Info(
-                    "MusicEnhancer: Detected {Count} version track(s) in album '{AlbumTitle}'. Action is 'Flag for review', so no files will be deleted or unmonitored.",
+                    "MusicEnhancer: Detected {Count} version track(s) in album '{AlbumTitle}'. Action is not 'Unmonitor', so no files will be deleted or unmonitored.",
                     versionTracks.Count,
                     importedAlbum.Title);
                 return;
             }
 
-            HandleCleanup(importedAlbum, tracksWithFiles, versionTracks, options);
+            HandleCleanup(artist, importedAlbum, tracks, versionTracks, options);
         }
         catch (Exception ex)
         {
@@ -138,72 +153,116 @@ public class ContentFilterService : IContentFilterService
         };
     }
 
-    private void HandleCleanup(Album album, List<Track> allTracks, List<Track> versionTracks, MusicEnhancerOptions options)
+    private bool HasCompatibleFile(Track track)
     {
-        // Calculate percentage of tracks that are unwanted
-        var unwantedPercentage = (double)versionTracks.Count / allTracks.Count * 100;
-
-        _logger.Info("MusicEnhancer: Album '{AlbumTitle}' has {Total} tracks, {Unwanted} are unwanted ({Percentage}%)",
-            album.Title, allTracks.Count, versionTracks.Count, Math.Round(unwantedPercentage, 1));
-
-        // If more than 50% of tracks are unwanted, unmonitor the entire album
-        if (unwantedPercentage > 50)
+        if (!Guid.TryParse(track.ForeignRecordingId, out _)) return true;
+        try
         {
-            _logger.Info("MusicEnhancer: Unmonitoring entire album '{AlbumTitle}' because {Percentage}% of tracks are unwanted",
-                album.Title, Math.Round(unwantedPercentage, 1));
-
-            _albumService.SetAlbumMonitored(album.Id, false);
-
-            if (options.DeleteFilesAfterUnmonitor)
-            {
-                foreach (var track in allTracks)
-                {
-                    DeleteTrackFile(track, "MusicEnhancer: Album unmonitored - version filter");
-                }
-            }
-            else
-            {
-                _logger.Info("MusicEnhancer: 'Delete files after unmonitor' is disabled; keeping files for album '{AlbumTitle}'", album.Title);
-            }
+            var file = _mediaFileService.Get(track.TrackFileId);
+            if (file != null && file.Id == track.TrackFileId && !string.IsNullOrWhiteSpace(file.Path) && System.IO.File.Exists(file.Path) &&
+                MusicFileIdentity.HasNoRecordingIdConflict(file.Path, track)) return true;
         }
-        else
+        catch (Exception ex)
         {
-            _logger.Info("MusicEnhancer: Album '{AlbumTitle}' contains mixed content; {Count} version track(s) detected", album.Title, versionTracks.Count);
-
-            if (options.DeleteFilesAfterUnmonitor)
-            {
-                foreach (var track in versionTracks)
-                {
-                    DeleteTrackFile(track, "MusicEnhancer: Version filter - unwanted track");
-                }
-            }
-            else
-            {
-                _logger.Info("MusicEnhancer: 'Delete files after unmonitor' is disabled; keeping version track files in album '{AlbumTitle}'", album.Title);
-            }
+            _logger.Warn(ex, "MusicEnhancer: Unable to verify the recording for '{0}'", track.Title);
         }
-
-        _logger.Info("MusicEnhancer: Cleanup complete for album '{AlbumTitle}'", album.Title);
+        _logger.Warn("MusicEnhancer: File for '{0}' is missing or has a conflicting recording ID; skipping filter action", track.Title);
+        return false;
     }
 
-    private void DeleteTrackFile(Track track, string reason)
+    private bool? HasCleanAdvisory(Track track)
     {
-        var trackFile = track.TrackFile?.Value;
-        if (trackFile != null)
+        try
         {
-            try
-            {
-                _deleteMediaFiles.DeleteTrackFile(trackFile, reason);
-                _logger.Info("MusicEnhancer: Deleted track file '{FileName}'", trackFile.Path);
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex, "MusicEnhancer: Failed to delete track file '{FileName}'", trackFile.Path);
-            }
+            var file = _mediaFileService.Get(track.TrackFileId);
+            if (file == null || file.Id != track.TrackFileId || string.IsNullOrWhiteSpace(file.Path) || !System.IO.File.Exists(file.Path)) return null;
+            return AdvisoryTagWriter.IsKnownClean(file.Path);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn(ex, "MusicEnhancer: Unable to inspect advisory for '{0}'", track.Title);
+            return null;
+        }
+    }
+
+    private bool HasVerifiedVersion(Artist artist, Track track, VersionType type)
+    {
+        try
+        {
+            var file = _mediaFileService.Get(track.TrackFileId);
+            if (file == null || file.Id != track.TrackFileId || string.IsNullOrWhiteSpace(file.Path) || !System.IO.File.Exists(file.Path) || !MusicFileIdentity.IsWithinArtistFolder(artist, file.Path)) return false;
+            using var audio = TagLib.File.Create(file.Path);
+            if (Guid.TryParse(track.ForeignRecordingId, out var expected) &&
+                Guid.TryParse(audio.Tag.MusicBrainzTrackId, out var existing) && expected == existing) return true;
+            return !string.IsNullOrWhiteSpace(audio.Tag.Title) &&
+                string.Equals(audio.Tag.Title.Trim(), track.Title?.Trim(), StringComparison.OrdinalIgnoreCase) &&
+                VersionMatcher.MatchVersion(new Track { Title = audio.Tag.Title })?.VersionType == type;
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn(ex, "MusicEnhancer: Unable to verify version metadata for '{0}'", track.Title);
+            return false;
+        }
+    }
+
+    private void HandleCleanup(Artist artist, Album album, List<Track> allTracks, List<Track> versionTracks, MusicEnhancerOptions options)
+    {
+        // Never unmonitor an album containing unmatched or undownloaded tracks.
+        if (allTracks.Count > 0 && versionTracks.Count == allTracks.Count)
+        {
+            _logger.Info("MusicEnhancer: Unmonitoring album '{0}' because all its tracks matched", album.Title);
+            _albumService.SetAlbumMonitored(album.Id, false);
         }
         else
         {
-            _logger.Warn("MusicEnhancer: Track '{TrackTitle}' has no track file", track.Title);
+            _logger.Info("MusicEnhancer: Album '{0}' contains unmatched or undownloaded tracks; leaving it monitored. Lidarr does not support individual track monitoring.", album.Title);
+        }
+
+        if (!options.DeleteFilesAfterUnmonitor) return;
+
+        foreach (var track in versionTracks)
+        {
+            DeleteTrackFile(artist, track);
+        }
+    }
+
+    private void DeleteTrackFile(Artist artist, Track track)
+    {
+        try
+        {
+            var linkedTracks = _trackService.GetTracksByFileId(track.TrackFileId);
+            if (linkedTracks.Count != 1 || linkedTracks[0].Id != track.Id)
+            {
+                _logger.Warn("MusicEnhancer: Skipping shared or ambiguous file for track '{0}'", track.Title);
+                return;
+            }
+
+            var trackFile = _mediaFileService.Get(track.TrackFileId);
+            if (trackFile == null || trackFile.Id != track.TrackFileId || string.IsNullOrWhiteSpace(trackFile.Path))
+            {
+                _logger.Warn("MusicEnhancer: No track file found for '{0}'", track.Title);
+                return;
+            }
+
+            if (!System.IO.File.Exists(trackFile.Path) || !MusicFileIdentity.HasNoRecordingIdConflict(trackFile.Path, track))
+            {
+                _logger.Warn("MusicEnhancer: Matched file for '{0}' is missing or has a conflicting recording ID; skipping deletion", track.Title);
+                return;
+            }
+
+            if (!MusicFileIdentity.IsWithinArtistFolder(artist, trackFile.Path))
+            {
+                _logger.Warn("MusicEnhancer: Matched file for '{0}' is outside its artist folder; skipping deletion", track.Title);
+                return;
+            }
+
+            // Use Lidarr's artist-aware deletion/recycle-bin path, not a user-facing reason as a folder name.
+            _deleteMediaFiles.DeleteTrackFile(artist, trackFile);
+            _logger.Info("MusicEnhancer: Deleted matched track file '{0}'", trackFile.Path);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "MusicEnhancer: Failed to delete matched file for track '{0}'", track.Title);
         }
     }
 }

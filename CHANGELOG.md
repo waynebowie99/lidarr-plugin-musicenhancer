@@ -3,7 +3,24 @@
 All notable changes to the Lidarr Music Enhancer plugin will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+and the project uses four-component version numbers.
+
+## [1.0.2.0] - 2026-11-14
+
+### Safety fixes
+- Never delete unmatched files when a majority of an album matches. Shared files, paths outside the artist folder, symlinks and explicit recording-ID conflicts are skipped.
+- Unmonitor only when every known track is downloaded and matches; invalid filter actions do nothing.
+- File deletion defaults off for new connections; existing saved values are preserved.
+- Match version markers conservatively, preserve remasters and originals, and include short commentary tracks.
+- Preserve existing clean-advisory tags, including on tracks whose Lidarr titles do not say "clean".
+- Require a matching version-marked file title or embedded recording ID before destructive actions.
+- Reject conflicting startup-scan configurations and continue past individual album failures.
+
+### Metadata and cleanup
+- Fill missing medium, disc subtitle, compilation, country, edition, original year, release track ID and per-disc count from Lidarr.
+- Optional MusicBrainz recording credits, single-work metadata, community track tags and recognizable moods.
+- Preserve differently cased MP4 freeform tags and skip conflicting embedded recording IDs.
+- Remove dead classes and unused dependencies; retain legacy fields to preserve saved settings.
 
 ## [1.0.1.9] - 2026-11-14
 

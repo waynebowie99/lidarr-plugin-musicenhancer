@@ -17,6 +17,7 @@ public interface IAdditionalMetadataLookupService
     string? LookupLyrics(string? artist, string? album, string? title, int durationMs);
     string[]? LookupComposers(Track track);
     string[]? LookupMoods(Track track, string? apiKey);
+    RecordingMetadata? LookupRecordingMetadata(Track track);
 }
 
 public class AdditionalMetadataLookupService : IAdditionalMetadataLookupService
@@ -27,6 +28,7 @@ public class AdditionalMetadataLookupService : IAdditionalMetadataLookupService
     private static readonly Dictionary<string, DateTime> RetryAfter = new(StringComparer.OrdinalIgnoreCase);
     private readonly HttpClient _client;
     private readonly Logger _logger;
+    private readonly Dictionary<string, RecordingMetadata> _recordingCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> KnownMoods = new(StringComparer.OrdinalIgnoreCase)
     {
         "happy", "sad", "melancholic", "melancholy", "energetic", "relaxing", "calm", "chill",
@@ -41,12 +43,97 @@ public class AdditionalMetadataLookupService : IAdditionalMetadataLookupService
 
     internal AdditionalMetadataLookupService(Logger logger, HttpClient client) : this(logger) => _client = client;
 
+    public RecordingMetadata? LookupRecordingMetadata(Track track)
+    {
+        if (!Guid.TryParse(track.ForeignRecordingId, out var recordingId) || track.Duration <= 0) return null;
+        var cacheKey = $"{recordingId:D}:{track.Duration}";
+        lock (_recordingCache)
+        {
+            if (_recordingCache.TryGetValue(cacheKey, out var cached)) return cached;
+        }
+        try
+        {
+            MusicBrainzThrottle.Wait();
+            using var json = GetJson($"https://musicbrainz.org/ws/2/recording/{recordingId:D}?inc=artist-credits+work-rels+tags&fmt=json");
+            if (json == null) return null;
+            var root = json.RootElement;
+            if (!root.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String ||
+                !Guid.TryParse(id.GetString(), out var actual) || actual != recordingId ||
+                !root.TryGetProperty("length", out var length) || !length.TryGetInt32(out var lengthMs) ||
+                lengthMs <= 0 || Math.Abs((long)lengthMs - track.Duration) > 5000) return null;
+
+            var result = new RecordingMetadata();
+            if (root.TryGetProperty("artist-credit", out var credits) && credits.ValueKind == JsonValueKind.Array)
+            {
+                var names = new List<string>();
+                var sorts = new List<string>();
+                foreach (var credit in credits.EnumerateArray())
+                {
+                    if (credit.ValueKind != JsonValueKind.Object || !credit.TryGetProperty("artist", out var artist) || artist.ValueKind != JsonValueKind.Object ||
+                        !credit.TryGetProperty("name", out var name) || name.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(name.GetString()))
+                    {
+                        names.Clear();
+                        break;
+                    }
+                    names.Add(name.GetString()!.Trim());
+                    sorts.Add(artist.TryGetProperty("sort-name", out var sort) && sort.ValueKind == JsonValueKind.String ? (sort.GetString() ?? string.Empty).Trim() : string.Empty);
+                }
+                if (names.Count > 0 && names.Distinct(StringComparer.OrdinalIgnoreCase).Count() == names.Count)
+                {
+                    result.Artists = names.ToArray();
+                    if (sorts.All(s => !string.IsNullOrWhiteSpace(s))) result.ArtistSortNames = sorts.ToArray();
+                }
+            }
+
+            if (root.TryGetProperty("relations", out var relations) && relations.ValueKind == JsonValueKind.Array)
+            {
+                var works = new Dictionary<Guid, string>();
+                foreach (var relation in relations.EnumerateArray())
+                {
+                    if (relation.ValueKind != JsonValueKind.Object || !relation.TryGetProperty("type", out var type) || type.ValueKind != JsonValueKind.String || type.GetString() != "performance" ||
+                        !relation.TryGetProperty("work", out var work) || work.ValueKind != JsonValueKind.Object ||
+                        !work.TryGetProperty("id", out var workId) || workId.ValueKind != JsonValueKind.String || !Guid.TryParse(workId.GetString(), out var parsed) ||
+                        !work.TryGetProperty("title", out var title) || title.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(title.GetString())) continue;
+                    works[parsed] = title.GetString()!.Trim();
+                }
+                if (works.Count == 1) result.Work = works.Values.Single();
+            }
+
+            if (root.TryGetProperty("tags", out var tags) && tags.ValueKind == JsonValueKind.Array)
+            {
+                var names = new List<string>();
+                foreach (var item in tags.EnumerateArray())
+                {
+                    if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("count", out var votes) || !votes.TryGetInt32(out var count) || count <= 0 ||
+                        !item.TryGetProperty("name", out var name) || name.ValueKind != JsonValueKind.String) continue;
+                    var value = name.GetString()?.Trim();
+                    if (!string.IsNullOrWhiteSpace(value) && value.Length <= 80 && !value.Contains(';') && !value.Any(char.IsControl)) names.Add(value);
+                }
+                result.CommunityTags = names.Distinct(StringComparer.OrdinalIgnoreCase).Take(20).ToArray();
+                result.Moods = result.CommunityTags.Where(KnownMoods.Contains).Select(s => s.ToLowerInvariant()).ToArray();
+            }
+
+            lock (_recordingCache) _recordingCache[cacheKey] = result;
+            return result;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
+        {
+            _logger.Debug(ex, "MusicEnhancer: Recording metadata lookup failed for {0}", recordingId);
+            return null;
+        }
+    }
+
     public string[]? LookupMoods(Track track, string? apiKey)
     {
         if (!Guid.TryParse(track.ForeignRecordingId, out var recordingId) || string.IsNullOrWhiteSpace(apiKey)) return null;
         try
         {
             using var json = GetJson($"https://ws.audioscrobbler.com/2.0/?method=track.gettoptags&mbid={recordingId:D}&api_key={Uri.EscapeDataString(apiKey)}&format=json");
+            if (json != null && json.RootElement.TryGetProperty("error", out var error) && error.TryGetInt32(out var errorCode) && errorCode == 29)
+            {
+                lock (RequestGate) RetryAfter["ws.audioscrobbler.com"] = DateTime.UtcNow.AddMinutes(2);
+                return null;
+            }
             if (json == null || !json.RootElement.TryGetProperty("toptags", out var top) ||
                 !top.TryGetProperty("tag", out var tags) || tags.ValueKind != JsonValueKind.Array) return null;
             var moods = new List<string>();
@@ -208,7 +295,7 @@ public class AdditionalMetadataLookupService : IAdditionalMetadataLookupService
 
     private static HttpClient CreateClient()
     {
-        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10), MaxResponseContentBufferSize = 4 * 1024 * 1024 };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("Lidarr-MusicEnhancer/1.0 (https://github.com/waynebowie99/lidarr-plugin-musicenhancer)");
         return client;
     }

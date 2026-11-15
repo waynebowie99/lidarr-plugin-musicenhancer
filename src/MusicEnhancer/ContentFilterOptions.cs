@@ -8,18 +8,12 @@ namespace NzbDrone.Core.Plugins;
 /// </summary>
 public class VersionMatchResult
 {
-    public string TrackTitle { get; set; }
-    public string? MatchedTrackTitle { get; }
     public VersionType VersionType { get; }
-    public double Confidence { get; }
     public string Reason { get; }
 
-    public VersionMatchResult(string trackTitle, string? matchedTrackTitle, VersionType versionType, double confidence, string reason)
+    public VersionMatchResult(VersionType versionType, string reason)
     {
-        TrackTitle = trackTitle;
-        MatchedTrackTitle = matchedTrackTitle;
         VersionType = versionType;
-        Confidence = confidence;
         Reason = reason;
     }
 }
@@ -29,7 +23,6 @@ public class VersionMatchResult
 /// </summary>
 public enum VersionType
 {
-    None,
     Remix,
     Edit,
     Version,
@@ -47,7 +40,6 @@ public class MusicEnhancerOptions
 {
     public HashSet<string> ReleaseTypesToFilter { get; }
     public VersionFilterAction VersionFilterAction { get; }
-    public int DurationToleranceMs { get; }
     public bool EnableRemixFiltering { get; }
     public bool EnableVersionFiltering { get; }
     public bool EnableLiveVersionFiltering { get; }
@@ -67,17 +59,13 @@ public class MusicEnhancerOptions
     public bool EnableBpmLookup { get; }
     public bool EnableComposerLookup { get; }
     public bool EnableMoodLookup { get; }
+    public bool EnableRecordingMetadataLookup { get; }
     public bool KeepCleanVersions { get; }
     public string? LastFmApiKey { get; }
-    public string? DeezerApiKey { get; }
-    public string? DiscogsApiKey { get; }
-    public string? DiscogsApiSecret { get; }
-    public string? AcoustIdApiKey { get; }
 
     public MusicEnhancerOptions(
         HashSet<string> releaseTypesToFilter,
         VersionFilterAction versionFilterAction,
-        int durationToleranceMs,
         bool enableRemixFiltering,
         bool enableVersionFiltering,
         bool enableLiveVersionFiltering,
@@ -92,21 +80,17 @@ public class MusicEnhancerOptions
         bool enableMetadataWriting,
         bool keepCleanVersions,
         string? lastFmApiKey,
-        string? deezerApiKey,
-        string? discogsApiKey,
-        string? discogsApiSecret,
-        string? acoustIdApiKey,
         bool enableOnlineExplicitLookup = false,
         bool enableMetadataProcessing = false,
         bool enableLibraryTagging = false,
         bool enableLyricsLookup = false,
         bool enableBpmLookup = false,
         bool enableComposerLookup = false,
-        bool enableMoodLookup = false)
+        bool enableMoodLookup = false,
+        bool enableRecordingMetadataLookup = false)
     {
         ReleaseTypesToFilter = releaseTypesToFilter ?? new HashSet<string>();
         VersionFilterAction = versionFilterAction;
-        DurationToleranceMs = durationToleranceMs;
         EnableRemixFiltering = enableRemixFiltering;
         EnableVersionFiltering = enableVersionFiltering;
         EnableLiveVersionFiltering = enableLiveVersionFiltering;
@@ -126,12 +110,9 @@ public class MusicEnhancerOptions
         EnableBpmLookup = enableBpmLookup;
         EnableComposerLookup = enableComposerLookup;
         EnableMoodLookup = enableMoodLookup;
+        EnableRecordingMetadataLookup = enableRecordingMetadataLookup;
         KeepCleanVersions = keepCleanVersions;
         LastFmApiKey = lastFmApiKey;
-        DeezerApiKey = deezerApiKey;
-        DiscogsApiKey = discogsApiKey;
-        DiscogsApiSecret = discogsApiSecret;
-        AcoustIdApiKey = acoustIdApiKey;
     }
 }
 

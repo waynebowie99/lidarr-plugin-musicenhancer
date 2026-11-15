@@ -8,27 +8,11 @@ using NzbDrone.Core.Validation;
 
 namespace NzbDrone.Core.Plugins;
 
-public enum ReleaseTypeFilter
-{
-    [FieldOption(Label = "Albums", Hint = "Filter remixes and versions on albums")]
-    Album = 0,
-
-    [FieldOption(Label = "EPs", Hint = "Filter remixes and versions on EPs")]
-    EP = 1,
-
-    [FieldOption(Label = "Singles", Hint = "Filter remixes and versions on singles")]
-    Single = 2,
-
-    [FieldOption(Label = "Compilations", Hint = "Filter remixes and versions on compilations")]
-    Compilation = 3
-}
-
 /// <summary>
 /// Lidarr provider settings for the Music Enhancer connection.
 /// </summary>
 public class MusicEnhancerSettings : IProviderConfig
 {
-    private static readonly ReleaseTypeFilter[] DefaultReleaseTypes = { ReleaseTypeFilter.Album, ReleaseTypeFilter.EP };
     private const string DefaultReleaseTypesString = "Album, EP";
     private static readonly MusicEnhancerSettingsValidator Validator = new MusicEnhancerSettingsValidator();
 
@@ -46,23 +30,23 @@ public class MusicEnhancerSettings : IProviderConfig
         EnableCommentaryFiltering = true;
         MinimumTrackDurationMs = 30000; // 30 seconds minimum
         MaximumTrackDurationMs = 600000; // 10 minutes maximum
-        DeleteFilesAfterUnmonitor = true; // Default to delete files
+        DeleteFilesAfterUnmonitor = false;
         EnableExplicitTagging = true;
         EnableMetadataWriting = true;
         KeepCleanVersions = true;
         ScanLibraryOnStartup = false;
     }
 
-    [FieldDefinition(0, Label = "Version filter action", Type = FieldType.Select, SelectOptions = typeof(VersionFilterAction), HelpText = "Action to take when a version is detected. Defaults to flag for review.")]
+    [FieldDefinition(0, Label = "Version filter action", Type = FieldType.Select, SelectOptions = typeof(VersionFilterAction), HelpText = "Flag logs matches; Unmonitor applies only if all known tracks match. Mixed albums stay monitored. Defaults to flag for review.")]
     public VersionFilterAction VersionFilterAction { get; set; }
 
     [FieldDefinition(1, Label = "Release types to filter", Type = FieldType.Textbox, HelpText = "Comma-separated release types to apply filtering to. Defaults to Album, EP.")]
     public string ReleaseTypesToFilter { get; set; }
 
-    [FieldDefinition(2, Label = "Duration tolerance (ms)", Type = FieldType.Number, HelpText = "Maximum duration difference for title + duration matching. Defaults to 3000 ms.")]
+    [FieldDefinition(2, Label = "Legacy duration tolerance (unused)", Type = FieldType.Number, Advanced = true, HelpText = "Retained for compatibility; the version matcher does not use this setting.")]
     public int DurationToleranceMs { get; set; }
 
-    [FieldDefinition(3, Label = "Enable remix filtering", Type = FieldType.Checkbox, HelpText = "Filter remixes (Remix, Edit, Bootleg, Reinterpretation, etc.). On by default.")]
+    [FieldDefinition(3, Label = "Enable remix filtering", Type = FieldType.Checkbox, HelpText = "Filter titles marked Remix, Bootleg, Rework, etc. On by default.")]
     public bool EnableRemixFiltering { get; set; }
 
     [FieldDefinition(4, Label = "Enable version filtering", Type = FieldType.Checkbox, HelpText = "Filter version markers (Version, Alternative Version, Extended Version, etc.). On by default.")]
@@ -71,7 +55,7 @@ public class MusicEnhancerSettings : IProviderConfig
     [FieldDefinition(5, Label = "Enable live version filtering", Type = FieldType.Checkbox, HelpText = "Filter live versions (Live, Live Version, Live at, etc.). On by default.")]
     public bool EnableLiveVersionFiltering { get; set; }
 
-    [FieldDefinition(6, Label = "Enable acoustic filtering", Type = FieldType.Checkbox, HelpText = "Filter acoustic versions (Acoustic, Acoustic Version, Acoustic Version, etc.). On by default.")]
+    [FieldDefinition(6, Label = "Enable acoustic filtering", Type = FieldType.Checkbox, HelpText = "Filter titles marked Acoustic or Unplugged. On by default.")]
     public bool EnableAcousticVersionFiltering { get; set; }
 
     [FieldDefinition(7, Label = "Enable edit filtering", Type = FieldType.Checkbox, HelpText = "Filter edit versions (Edit, Radio Edit, Album Edit, etc.). On by default.")]
@@ -80,37 +64,37 @@ public class MusicEnhancerSettings : IProviderConfig
     [FieldDefinition(8, Label = "Enable demo filtering", Type = FieldType.Checkbox, HelpText = "Filter demo versions (Demo, Demo Version, Demo Recording, etc.). On by default.")]
     public bool EnableDemoVersionFiltering { get; set; }
 
-    [FieldDefinition(9, Label = "Minimum track duration (ms)", Type = FieldType.Number, HelpText = "Minimum track duration in milliseconds. Tracks shorter than this are ignored. Defaults to 30000 ms (30 seconds).")]
+    [FieldDefinition(9, Label = "Minimum track duration (ms)", Type = FieldType.Number, HelpText = "Ignore short version tracks, except commentary. Defaults to 30000 ms (30 seconds).")]
     public int MinimumTrackDurationMs { get; set; }
 
-    [FieldDefinition(10, Label = "Maximum track duration (ms)", Type = FieldType.Number, HelpText = "Maximum track duration in milliseconds. Tracks longer than this are ignored. Defaults to 600000 ms (10 minutes).")]
+    [FieldDefinition(10, Label = "Maximum track duration (ms)", Type = FieldType.Number, HelpText = "Ignore long version tracks, except commentary. Defaults to 600000 ms (10 minutes).")]
     public int MaximumTrackDurationMs { get; set; }
 
-    [FieldDefinition(11, Label = "Delete files after unmonitor", Type = FieldType.Checkbox, HelpText = "Delete media files after unmonitoring a version. Defaults to true (delete files).")]
+    [FieldDefinition(11, Label = "Delete matched track files", Type = FieldType.Checkbox, HelpText = "When action is Unmonitor, also delete individually matched, unshared track files. Off by default for new connections. Existing settings are preserved.")]
     public bool DeleteFilesAfterUnmonitor { get; set; }
 
     [FieldDefinition(12, Label = "Enable explicit tagging", Type = FieldType.Checkbox, HelpText = "Tag tracks with known explicit or clean ratings. Existing advisory tags are preserved.")]
     public bool EnableExplicitTagging { get; set; }
 
-    [FieldDefinition(13, Label = "Enable metadata writing", Type = FieldType.Checkbox, HelpText = "Write metadata tags to files. Required for explicit tagging to work. On by default.")]
+    [FieldDefinition(13, Label = "Enable metadata writing", Type = FieldType.Checkbox, HelpText = "Allow metadata and lyric file writes when metadata processing is also enabled. On by default.")]
     public bool EnableMetadataWriting { get; set; }
 
-    [FieldDefinition(14, Label = "Last.fm API Key", Type = FieldType.Textbox, HelpText = "Optional Last.fm key for mood lookup. No key is required for the other lookups.")]
+    [FieldDefinition(14, Label = "Last.fm API Key", Type = FieldType.Textbox, Privacy = PrivacyLevel.ApiKey, HelpText = "Optional Last.fm key for mood lookup. No key is required for the other lookups.")]
     public string? LastFmApiKey { get; set; }
 
-    [FieldDefinition(15, Label = "Deezer API Key", Type = FieldType.Textbox, HelpText = "Currently unused; the optional explicit lookup does not require an API key.")]
+    [FieldDefinition(15, Label = "Legacy Deezer API Key (unused)", Type = FieldType.Textbox, Privacy = PrivacyLevel.ApiKey, Advanced = true, HelpText = "Retained to preserve existing settings. Deezer lookups do not need this key.")]
     public string? DeezerApiKey { get; set; }
 
-    [FieldDefinition(16, Label = "Discogs API Key", Type = FieldType.Textbox, HelpText = "Reserved for future use; currently unused.")]
+    [FieldDefinition(16, Label = "Legacy Discogs API Key (unused)", Type = FieldType.Textbox, Privacy = PrivacyLevel.ApiKey, Advanced = true, HelpText = "Retained to preserve existing settings; unused.")]
     public string? DiscogsApiKey { get; set; }
 
-    [FieldDefinition(17, Label = "Discogs API Secret", Type = FieldType.Password, HelpText = "Reserved for future use; currently unused.")]
+    [FieldDefinition(17, Label = "Legacy Discogs API Secret (unused)", Type = FieldType.Password, Privacy = PrivacyLevel.Password, Advanced = true, HelpText = "Retained to preserve existing settings; unused.")]
     public string? DiscogsApiSecret { get; set; }
 
-    [FieldDefinition(18, Label = "AcoustID API Key", Type = FieldType.Textbox, HelpText = "Reserved for future use; currently unused.")]
+    [FieldDefinition(18, Label = "Legacy AcoustID API Key (unused)", Type = FieldType.Textbox, Privacy = PrivacyLevel.ApiKey, Advanced = true, HelpText = "Retained to preserve existing settings; unused.")]
     public string? AcoustIdApiKey { get; set; }
 
-    [FieldDefinition(19, Label = "Keep clean versions", Type = FieldType.Checkbox, HelpText = "Keep tracks marked Clean, Clean Version, Clean Edit, etc. instead of filtering them as edits or versions. On by default.")]
+    [FieldDefinition(19, Label = "Keep clean versions", Type = FieldType.Checkbox, HelpText = "Preserve clean title markers or advisory tags when filtering edits and versions. Skips files whose advisory cannot be inspected. On by default.")]
     public bool KeepCleanVersions { get; set; }
 
     [FieldDefinition(20, Label = "Enable commentary filtering", Type = FieldType.Checkbox, HelpText = "Filter commentary tracks (Commentary, Album Commentary, Track Commentary, etc.). On by default.")]
@@ -140,6 +124,9 @@ public class MusicEnhancerSettings : IProviderConfig
     [FieldDefinition(28, Label = "Look up mood online", Type = FieldType.Checkbox, HelpText = "Fill a missing mood from recognized Last.fm community mood tags using the recording ID. Requires a Last.fm API key and Fill missing library tags. Off by default.")]
     public bool EnableMoodLookup { get; set; }
 
+    [FieldDefinition(29, Label = "Look up recording metadata online", Type = FieldType.Checkbox, HelpText = "Use MusicBrainz to fill missing recording credits, work, community track tags and recognizable moods. Requires Fill missing library tags. Off by default.")]
+    public bool EnableRecordingMetadataLookup { get; set; }
+
     /// <summary>
     /// Converts settings to a validated MusicEnhancerOptions snapshot.
     /// </summary>
@@ -149,7 +136,6 @@ public class MusicEnhancerSettings : IProviderConfig
         return new MusicEnhancerOptions(
             releaseTypes,
             VersionFilterAction,
-            DurationToleranceMs,
             EnableRemixFiltering,
             EnableVersionFiltering,
             EnableLiveVersionFiltering,
@@ -164,17 +150,14 @@ public class MusicEnhancerSettings : IProviderConfig
             EnableMetadataWriting,
             KeepCleanVersions,
             LastFmApiKey,
-            DeezerApiKey,
-            DiscogsApiKey,
-            DiscogsApiSecret,
-            AcoustIdApiKey,
             EnableOnlineExplicitLookup,
             EnableMetadataProcessing,
             EnableLibraryTagging,
             EnableLyricsLookup,
             EnableBpmLookup,
             EnableComposerLookup,
-            EnableMoodLookup);
+            EnableMoodLookup,
+            EnableRecordingMetadataLookup);
     }
 
     private static HashSet<string> ParseReleaseTypes(string? releaseTypesString)
@@ -219,60 +202,12 @@ public class MusicEnhancerSettings : IProviderConfig
     }
 }
 
-/// <summary>
-/// Metadata enhancement settings for explicit tag support.
-/// </summary>
-public class MetadataEnhancerSettings
-{
-    private static readonly MetadataEnhancerSettingsValidator Validator = new MetadataEnhancerSettingsValidator();
-
-    public MetadataEnhancerSettings()
-    {
-        EnableExplicitTagging = true;
-        EnableMetadataWriting = true;
-    }
-
-    [FieldDefinition(12, Label = "Enable explicit tagging", Type = FieldType.Checkbox, HelpText = "Automatically detect and tag explicit content in track metadata. Required for Symfonium/Jellyfin compatibility. On by default.")]
-    public bool EnableExplicitTagging { get; set; }
-
-    [FieldDefinition(13, Label = "Enable metadata writing", Type = FieldType.Checkbox, HelpText = "Write metadata tags to files. Required for explicit tagging to work. On by default.")]
-    public bool EnableMetadataWriting { get; set; }
-
-    [FieldDefinition(14, Label = "Last.fm API Key", Type = FieldType.Textbox, HelpText = "API key for Last.fm metadata enrichment (play counts, ratings, tags, genres). Optional but recommended.")]
-    public string? LastFmApiKey { get; set; }
-
-    [FieldDefinition(15, Label = "Deezer API Key", Type = FieldType.Textbox, HelpText = "API key for Deezer metadata enrichment (duration, preview, album info). Optional but recommended.")]
-    public string? DeezerApiKey { get; set; }
-
-    [FieldDefinition(16, Label = "Discogs API Key", Type = FieldType.Textbox, HelpText = "API key for Discogs metadata enrichment (release date, label, catalog number). Optional but recommended.")]
-    public string? DiscogsApiKey { get; set; }
-
-    [FieldDefinition(17, Label = "Discogs API Secret", Type = FieldType.Password, HelpText = "API secret for Discogs authentication. Optional but recommended.")]
-    public string? DiscogsApiSecret { get; set; }
-
-    [FieldDefinition(18, Label = "AcoustID API Key", Type = FieldType.Textbox, HelpText = "API key for AcoustID audio fingerprinting (MusicBrainz Recording ID, duration accuracy). Optional but recommended.")]
-    public string? AcoustIdApiKey { get; set; }
-
-    public NzbDroneValidationResult Validate()
-    {
-        return new NzbDroneValidationResult(Validator.Validate(this));
-    }
-}
-
-public class MetadataEnhancerSettingsValidator : AbstractValidator<MetadataEnhancerSettings>
-{
-    public MetadataEnhancerSettingsValidator()
-    {
-        // Validation rules for metadata enhancement settings
-    }
-}
-
 public class MusicEnhancerSettingsValidator : AbstractValidator<MusicEnhancerSettings>
 {
     public MusicEnhancerSettingsValidator()
     {
-        RuleFor(c => c.DurationToleranceMs).GreaterThan(0)
-            .WithMessage("Duration tolerance must be greater than 0");
+        RuleFor(c => c.VersionFilterAction).IsInEnum()
+            .WithMessage("Select a valid version filter action");
         RuleFor(c => c.MinimumTrackDurationMs).GreaterThanOrEqualTo(0)
             .WithMessage("Minimum track duration must be non-negative");
         RuleFor(c => c.MaximumTrackDurationMs).GreaterThan(c => c.MinimumTrackDurationMs)

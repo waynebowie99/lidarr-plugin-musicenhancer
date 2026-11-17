@@ -5,6 +5,14 @@ All notable changes to the Lidarr Music Enhancer plugin will be documented in th
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project uses four-component version numbers.
 
+## [1.0.2.1] - 2026-11-17
+
+### Performance
+- Exclude filter-selected tracks before metadata lookups.
+- Check existing metadata first and avoid requests for fields that are already populated.
+- Run independent metadata lookups concurrently with a bounded worker pool while preserving MusicBrainz's one-request-per-second limit.
+- Reuse a single MusicBrainz recording lookup for composer, recording, ISRC and explicit inputs where available.
+
 ## [1.0.2.0] - 2026-11-14
 
 ### Safety fixes

@@ -14,7 +14,7 @@ namespace NzbDrone.Core.Plugins;
 /// </summary>
 public interface IContentFilterService
 {
-    void FilterContentForArtist(Artist artist, Album importedAlbum, MusicEnhancerOptions options);
+    HashSet<int> FilterContentForArtist(Artist artist, Album importedAlbum, MusicEnhancerOptions options);
 }
 
 public class ContentFilterService : IContentFilterService
@@ -34,8 +34,9 @@ public class ContentFilterService : IContentFilterService
         _albumService = albumService ?? throw new ArgumentNullException(nameof(albumService));
     }
 
-    public void FilterContentForArtist(Artist artist, Album importedAlbum, MusicEnhancerOptions options)
+    public HashSet<int> FilterContentForArtist(Artist artist, Album importedAlbum, MusicEnhancerOptions options)
     {
+        var excludedTrackIds = new HashSet<int>();
         if (artist == null)
         {
             throw new ArgumentNullException(nameof(artist));
@@ -57,13 +58,13 @@ public class ContentFilterService : IContentFilterService
         if (!options.ReleaseTypesToFilter.Contains(albumType) && !(isCompilation && options.ReleaseTypesToFilter.Contains("Compilation")))
         {
             _logger.Debug("MusicEnhancer: Skipping album '{AlbumTitle}' because release type '{AlbumType}' is not enabled for filtering", importedAlbum.Title, albumType);
-            return;
+            return excludedTrackIds;
         }
 
         if (options.VersionFilterAction == VersionFilterAction.Skip)
         {
             _logger.Info("MusicEnhancer: Version filter action is 'Skip'; not checking album '{AlbumTitle}'", importedAlbum.Title);
-            return;
+            return excludedTrackIds;
         }
 
         _logger.Debug("MusicEnhancer: Filtering content for artist '{ArtistName}', album '{AlbumTitle}'", artist.Name, importedAlbum.Title);
@@ -77,7 +78,7 @@ public class ContentFilterService : IContentFilterService
             if (tracksWithFiles.Count == 0)
             {
                 _logger.Debug("MusicEnhancer: Album '{AlbumTitle}' has no downloaded tracks. Skipping.", importedAlbum.Title);
-                return;
+                return excludedTrackIds;
             }
 
             var versionTracks = new List<Track>();
@@ -109,6 +110,7 @@ public class ContentFilterService : IContentFilterService
                             continue;
                         }
                         versionTracks.Add(track);
+                        excludedTrackIds.Add(track.Id);
                         _logger.Info("MusicEnhancer: Track '{TrackTitle}' detected as {VersionType} - {Reason}", track.Title, versionInfo.VersionType, versionInfo.Reason);
                     }
                 }
@@ -117,7 +119,7 @@ public class ContentFilterService : IContentFilterService
             if (versionTracks.Count == 0)
             {
                 _logger.Debug("MusicEnhancer: No unwanted tracks found in album '{AlbumTitle}'", importedAlbum.Title);
-                return;
+                return excludedTrackIds;
             }
 
             if (options.VersionFilterAction != VersionFilterAction.Unmonitor)
@@ -126,7 +128,7 @@ public class ContentFilterService : IContentFilterService
                     "MusicEnhancer: Detected {Count} version track(s) in album '{AlbumTitle}'. Action is not 'Unmonitor', so no files will be deleted or unmonitored.",
                     versionTracks.Count,
                     importedAlbum.Title);
-                return;
+                return excludedTrackIds;
             }
 
             HandleCleanup(artist, importedAlbum, tracks, versionTracks, options);
@@ -135,6 +137,7 @@ public class ContentFilterService : IContentFilterService
         {
             _logger.Error(ex, "MusicEnhancer: Error filtering content");
         }
+        return excludedTrackIds;
     }
 
     private bool ShouldFilterVersion(VersionType versionType, MusicEnhancerOptions options)

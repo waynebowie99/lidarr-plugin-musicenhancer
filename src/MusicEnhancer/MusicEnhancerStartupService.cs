@@ -80,8 +80,8 @@ public class MusicEnhancerStartupService : IHandleAsync<ApplicationStartedEvent>
                     {
                         try
                         {
-                            _contentFilterService.FilterContentForArtist(artist, album, options);
-                            _metadataEnhancerService.EnhanceMetadataForArtist(artist, album, options);
+                            var filteredTrackIds = _contentFilterService.FilterContentForArtist(artist, album, options);
+                            _metadataEnhancerService.EnhanceMetadataForArtist(artist, album, options, filteredTrackIds);
                             albumsScanned++;
                         }
                         catch (Exception ex)

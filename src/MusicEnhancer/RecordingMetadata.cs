@@ -8,4 +8,7 @@ public sealed class RecordingMetadata
     public string? Work { get; set; }
     public string[]? CommunityTags { get; set; }
     public string[]? Moods { get; set; }
+    public string[]? Isrcs { get; set; }
+    public string[]? Composers { get; set; }
+    public AdvisoryRating? AdvisoryRating { get; set; }
 }

@@ -116,6 +116,7 @@ public class MusicEnhancerOptions
     }
 }
 
+
 /// <summary>
 /// Action to take when a version is detected.
 /// </summary>

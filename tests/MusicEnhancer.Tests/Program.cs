@@ -207,7 +207,8 @@ try
     Check(!filterSettings.DeleteFilesAfterUnmonitor, "file deletion defaults off for new settings");
     var oldSettings = System.Text.Json.JsonSerializer.Deserialize<MusicEnhancerSettings>("{\"DeleteFilesAfterUnmonitor\":true,\"DiscogsApiSecret\":\"saved-value\"}")!;
     Check(oldSettings.DeleteFilesAfterUnmonitor && oldSettings.DiscogsApiSecret == "saved-value" && !oldSettings.EnableRecordingMetadataLookup, "existing settings and legacy secret retained");
-    filter.FilterContentForArtist(filterArtist, new Album { Id = 4 }, filterSettings.ToFilterOptions());
+    var reviewCandidates = filter.FilterContentForArtist(filterArtist, new Album { Id = 4 }, filterSettings.ToFilterOptions());
+    Check(reviewCandidates.SetEquals(new[] { 1, 2, 3 }), "filter returns only selected unwanted track IDs");
     Check(deleted.Count == 0 && unmonitored == 0, "flag-only never deletes or unmonitors");
     filterSettings.VersionFilterAction = VersionFilterAction.Unmonitor;
     filter.FilterContentForArtist(filterArtist, new Album { Id = 4 }, filterSettings.ToFilterOptions());
@@ -336,6 +337,14 @@ try
     service.EnhanceMetadataForArtist(artist, album, settings.ToFilterOptions());
     Check(!AdvisoryTagWriter.HasRating(filePath), "disabled writes do nothing");
     settings.EnableMetadataWriting = true;
+    settings.EnableLibraryTagging = true;
+    settings.EnableRecordingMetadataLookup = true;
+    settings.EnableOnlineExplicitLookup = true;
+    service.EnhanceMetadataForArtist(artist, album, settings.ToFilterOptions(), new HashSet<int> { track.Id });
+    Check(lookup.Calls == 0 && additional.TotalCalls == 0 && !AdvisoryTagWriter.HasRating(filePath), "filtered tracks are excluded before all metadata lookups");
+    settings.EnableLibraryTagging = false;
+    settings.EnableRecordingMetadataLookup = false;
+    settings.EnableOnlineExplicitLookup = false;
     shared = true;
     service.EnhanceMetadataForArtist(artist, album, settings.ToFilterOptions());
     Check(!AdvisoryTagWriter.HasRating(filePath), "shared file skipped");
@@ -367,22 +376,25 @@ try
     settings.EnableExplicitTagging = false;
     settings.EnableLibraryTagging = true;
     settings.EnableLyricsLookup = true;
+    settings.EnableComposerLookup = true;
     album.Title = "Fixture Album";
     album.Genres = new List<string> { "Rock" };
     track.ArtistMetadata = new ArtistMetadata { Name = "Fixture Artist" };
     additional.Lyrics = "[00:01.00]Test";
     service.EnhanceMetadataForArtist(artist, album, settings.ToFilterOptions());
     Check(System.IO.File.Exists(Path.ChangeExtension(trackFile.Path, ".lrc")), "service adds sidecar independently of explicit tagging");
+    Check(additional.MaximumConcurrent >= 2, "independent lyrics and MusicBrainz lookups run concurrently");
     using (var tagged = TagLib.File.Create(trackFile.Path))
     {
         Check(tagged.Tag.Album == "Fixture Album" && tagged.Tag.Genres.Contains("Rock"), "service fills library tags even when advisory exists");
     }
     settings.EnableRecordingMetadataLookup = true;
+    var beforeRecordingMetadata = additional.RecordingCalls;
     additional.Recording = new RecordingMetadata { Work = "The Work", CommunityTags = new[] { "rock" } };
     service.EnhanceMetadataForArtist(artist, album, settings.ToFilterOptions());
     using (var tagged = TagLib.File.Create(trackFile.Path))
     {
-        Check(additional.RecordingCalls == 1 && ((XiphComment)tagged.GetTag(TagTypes.Xiph)).GetFirstField("WORK") == "The Work", "service writes optional recording metadata");
+        Check(additional.RecordingCalls == beforeRecordingMetadata + 1 && ((XiphComment)tagged.GetTag(TagTypes.Xiph)).GetFirstField("WORK") == "The Work", "service writes optional recording metadata");
     }
     trackFile.Path = CopyFixture("flac");
     using (var audio = TagLib.File.Create(trackFile.Path))
@@ -396,6 +408,43 @@ try
     var beforeConflict = updates;
     service.EnhanceMetadataForArtist(artist, album, settings.ToFilterOptions());
     Check(updates == beforeConflict && !AdvisoryTagWriter.HasRating(trackFile.Path), "recording ID conflict prevents metadata changes");
+
+    track.ForeignRecordingId = null!;
+    track.Title = "Complete Song";
+    track.Explicit = false;
+    album.Title = "Complete Album";
+    track.ArtistMetadata = new ArtistMetadata { Name = "Fixture Artist" };
+    trackFile.Path = CopyFixture("flac");
+    using (var audio = TagLib.File.Create(trackFile.Path))
+    {
+        audio.Tag.Title = track.Title;
+        audio.Tag.Album = album.Title;
+        audio.Tag.Performers = new[] { "Fixture Artist" };
+        audio.Tag.AlbumArtists = new[] { "Fixture Artist" };
+        audio.Tag.Genres = new[] { "Rock" };
+        audio.Tag.BeatsPerMinute = 120;
+        audio.Tag.Composers = new[] { "Composer" };
+        audio.Tag.Lyrics = "Existing lyrics";
+        var xiph = (XiphComment)audio.GetTag(TagTypes.Xiph, true);
+        xiph.SetField("MOOD", "happy");
+        xiph.SetField("WORK", "Complete Work");
+        xiph.SetField("TRACK_TAGS", "rock");
+        audio.Save();
+    }
+    AdvisoryTagWriter.WriteIfMissing(trackFile.Path, 1);
+    settings.EnableLibraryTagging = true;
+    settings.EnableRecordingMetadataLookup = true;
+    settings.EnableBpmLookup = true;
+    settings.EnableComposerLookup = true;
+    settings.EnableMoodLookup = true;
+    settings.EnableLyricsLookup = true;
+    settings.EnableExplicitTagging = true;
+    settings.EnableOnlineExplicitLookup = true;
+    var beforeFullMetadata = additional.TotalCalls;
+    var beforeFullExplicit = lookup.Calls;
+    service.EnhanceMetadataForArtist(artist, album, settings.ToFilterOptions());
+    Check(additional.TotalCalls == beforeFullMetadata && lookup.Calls == beforeFullExplicit,
+        "complete metadata, lyrics and advisory trigger no online lookups");
 
     var mock = new LookupHandler();
     var online = new ExplicitLookupService(LogManager.GetCurrentClassLogger(), new HttpClient(mock));
@@ -414,7 +463,7 @@ try
     Check(online.Lookup(lookupTrack) == null, "MusicBrainz duration mismatch rejected");
     lookupTrack.Duration = 208000;
     lookupTrack.ForeignRecordingId = "e0c9d75c-841e-4e8d-91d4-e20debfbc810";
-    Check(online.LookupSingleIsrc(lookupTrack) == "USUM71703861", "single MusicBrainz ISRC for BPM");
+    Check(online.Lookup(lookupTrack, new RecordingMetadata { Isrcs = new[] { "USUM71703861" } }) == AdvisoryRating.Explicit, "known ISRC avoids duplicate MusicBrainz request");
 
     var extraMock = new AdditionalLookupHandler();
     var extra = new AdditionalMetadataLookupService(LogManager.GetCurrentClassLogger(), new HttpClient(extraMock));
@@ -423,9 +472,10 @@ try
     Check(extra.LookupLyrics("The Artist", "The Album", "Song", 208000) == "[00:01.00]Lyrics", "LRCLIB lyrics matched");
     Check(extra.LookupLyrics("The Artist", "The Album", "Song (Clean)", 208000) == null, "different lyric version skipped");
     var composerTrack = new Track { ForeignRecordingId = "a0c9d75c-841e-4e8d-91d4-e20debfbc810", Duration = 208000 };
-    Check(extra.LookupComposers(composerTrack)?.SequenceEqual(new[] { "Composer Name" }) == true, "MusicBrainz composer credits only");
     var recordingLookup = extra.LookupRecordingMetadata(composerTrack);
-    Check(recordingLookup?.Artists?.SequenceEqual(new[] { "First Artist", "Second Artist" }) == true && recordingLookup.Work == "The Work", "MusicBrainz recording credits and work");
+    Check(recordingLookup?.Artists?.SequenceEqual(new[] { "First Artist", "Second Artist" }) == true && recordingLookup.Work == "The Work" &&
+          recordingLookup.Composers?.SequenceEqual(new[] { "Composer Name" }) == true && recordingLookup.Isrcs?.SequenceEqual(new[] { "USUM71703861" }) == true,
+          "MusicBrainz recording credits, composer, ISRC and work");
     Check(recordingLookup?.CommunityTags?.SequenceEqual(new[] { "rock", "happy" }) == true && recordingLookup.Moods?.SequenceEqual(new[] { "happy" }) == true, "MusicBrainz positive community tags and moods");
     composerTrack.Duration = 100000;
     Check(extra.LookupRecordingMetadata(composerTrack) == null, "recording metadata duration mismatch skipped");
@@ -463,7 +513,7 @@ try
     {
         startupFilterCount++;
         if (((Album)args![1]!).Id == 10) throw new InvalidOperationException("synthetic album failure");
-        return null;
+        return new HashSet<int> { 100 };
     }
     object? StartupMetadata() { startupMetadataCount++; return null; }
     string CopyFixture(string ext)
@@ -508,7 +558,7 @@ public class FakeLookup : IExplicitLookupService
     public AdvisoryRating? Result;
     public int Calls;
     public AdvisoryRating? Lookup(Track track) { Calls++; return Result; }
-    public string? LookupSingleIsrc(Track track) => null;
+    public AdvisoryRating? Lookup(Track track, RecordingMetadata? metadata, bool recordingLookupAttempted = false) { Calls++; return metadata?.AdvisoryRating ?? Result; }
 }
 
 public class FakeAdditionalLookup : IAdditionalMetadataLookupService
@@ -516,11 +566,24 @@ public class FakeAdditionalLookup : IAdditionalMetadataLookupService
     public string? Lyrics;
     public RecordingMetadata? Recording;
     public int RecordingCalls;
-    public uint? LookupBpm(string? isrc, int durationMs) => null;
-    public string? LookupLyrics(string? artist, string? album, string? title, int durationMs) => Lyrics;
-    public string[]? LookupComposers(Track track) => null;
-    public string[]? LookupMoods(Track track, string? apiKey) => null;
-    public RecordingMetadata? LookupRecordingMetadata(Track track) { RecordingCalls++; return Recording; }
+    public int TotalCalls;
+    private int _active;
+    private int _maximumConcurrent;
+    public int MaximumConcurrent => System.Threading.Volatile.Read(ref _maximumConcurrent);
+    private void Probe()
+    {
+        System.Threading.Interlocked.Increment(ref TotalCalls);
+        var active = System.Threading.Interlocked.Increment(ref _active);
+        int observed;
+        while (active > (observed = System.Threading.Volatile.Read(ref _maximumConcurrent)) &&
+               System.Threading.Interlocked.CompareExchange(ref _maximumConcurrent, active, observed) != observed) { }
+        System.Threading.Thread.Sleep(40);
+        System.Threading.Interlocked.Decrement(ref _active);
+    }
+    public uint? LookupBpm(string? isrc, int durationMs) { Probe(); return null; }
+    public string? LookupLyrics(string? artist, string? album, string? title, int durationMs) { Probe(); return Lyrics; }
+    public string[]? LookupMoods(Track track, string? apiKey) { Probe(); return null; }
+    public RecordingMetadata? LookupRecordingMetadata(Track track) { Probe(); System.Threading.Interlocked.Increment(ref RecordingCalls); return Recording; }
 }
 
 public class LookupHandler : HttpMessageHandler
@@ -552,7 +615,7 @@ public class AdditionalLookupHandler : HttpMessageHandler
             : uri.Host == "api.deezer.com"
             ? "{\"isrc\":\"USUM71703861\",\"duration\":208,\"bpm\":114.84}"
             : uri.Host == "musicbrainz.org" && uri.AbsolutePath.Contains("/recording/") && uri.Query.Contains("tags")
-                ? "{\"id\":\"a0c9d75c-841e-4e8d-91d4-e20debfbc810\",\"length\":208000,\"artist-credit\":[{\"name\":\"First Artist\",\"artist\":{\"sort-name\":\"Artist, First\"}},{\"name\":\"Second Artist\",\"artist\":{\"sort-name\":\"Artist, Second\"}}],\"relations\":[{\"type\":\"performance\",\"work\":{\"id\":\"b0c9d75c-841e-4e8d-91d4-e20debfbc810\",\"title\":\"The Work\"}}],\"tags\":[{\"name\":\"rock\",\"count\":5},{\"name\":\"happy\",\"count\":1},{\"name\":\"ignored\",\"count\":0},{\"name\":\"bad;tag\",\"count\":2}]}"
+                ? "{\"id\":\"a0c9d75c-841e-4e8d-91d4-e20debfbc810\",\"length\":208000,\"isrcs\":[\"USUM71703861\"],\"artist-credit\":[{\"name\":\"First Artist\",\"artist\":{\"sort-name\":\"Artist, First\"}},{\"name\":\"Second Artist\",\"artist\":{\"sort-name\":\"Artist, Second\"}}],\"relations\":[{\"type\":\"performance\",\"work\":{\"id\":\"b0c9d75c-841e-4e8d-91d4-e20debfbc810\",\"title\":\"The Work\",\"relations\":[{\"type\":\"composer\",\"artist\":{\"name\":\"Composer Name\"}}]}}],\"tags\":[{\"name\":\"rock\",\"count\":5},{\"name\":\"happy\",\"count\":1},{\"name\":\"ignored\",\"count\":0},{\"name\":\"bad;tag\",\"count\":2}]}"
             : uri.Host == "musicbrainz.org" && uri.AbsolutePath.Contains("/recording/")
                 ? "{\"id\":\"a0c9d75c-841e-4e8d-91d4-e20debfbc810\",\"length\":208000,\"relations\":[{\"type\":\"performance\",\"work\":{\"id\":\"b0c9d75c-841e-4e8d-91d4-e20debfbc810\"}}]}"
             : uri.Host == "musicbrainz.org"

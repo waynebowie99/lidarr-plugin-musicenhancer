@@ -42,7 +42,7 @@ Back up files before enabling metadata writes. If a file is hard-linked elsewher
 | Last.fm | A small set of recognizable community mood labels | Look up mood online; requires a Last.fm API key |
 | LRCLIB | Matching synced or plain lyrics as a new `.lrc` sidecar | Look up lyrics online |
 
-The optional online lookups send recording IDs, ISRCs or track details to the named services. They can take a long time on large libraries. Except for Last.fm mood lookup, no API key is required. Lyrics require matching artist, album, title and duration; existing embedded lyrics and `.lrc` files are preserved. MusicBrainz community tags are public user-submitted labels, not personal ratings. Existing legacy API-key settings are retained for compatibility but are unused.
+The optional online lookups send recording IDs, ISRCs or track details to the named services. Filtered tracks are excluded before lookups, and existing populated fields are checked first. Independent lookups run concurrently with a small worker limit; MusicBrainz remains limited to one request per second. Except for Last.fm mood lookup, no API key is required. Lyrics require matching artist, album, title and duration; existing embedded lyrics and `.lrc` files are preserved. MusicBrainz community tags are public user-submitted labels, not personal ratings. Existing legacy API-key settings are retained for compatibility but are unused.
 
 **Explicit tagging** uses Lidarr's positive explicit flag, clean-title markers and optional online lookups. A false Lidarr flag or a Deezer “not explicit” result does not prove a track is a clean edit. MP3/FLAC/OGG/Opus use `ITUNESADVISORY=1` for explicit and `2` for clean; MP4 uses `rtng=4` and `2` respectively. Unknown ratings are not written.
 

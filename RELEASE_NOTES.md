@@ -1,3 +1,12 @@
+# Music Enhancer v1.0.2.1
+
+## Metadata lookup performance
+
+- Tracks selected by the configured version filter are excluded before metadata lookup.
+- Existing field values are checked before online queries.
+- Independent services run concurrently with a bounded worker pool; MusicBrainz remains rate-limited.
+- MusicBrainz recording data is reused for metadata, composer, ISRC and explicit-status decisions.
+
 # Music Enhancer v1.0.2.0
 
 ## Safety fixes

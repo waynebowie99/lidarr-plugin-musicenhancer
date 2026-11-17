@@ -15,7 +15,6 @@ public interface IAdditionalMetadataLookupService
 {
     uint? LookupBpm(string? isrc, int durationMs);
     string? LookupLyrics(string? artist, string? album, string? title, int durationMs);
-    string[]? LookupComposers(Track track);
     string[]? LookupMoods(Track track, string? apiKey);
     RecordingMetadata? LookupRecordingMetadata(Track track);
 }
@@ -28,7 +27,7 @@ public class AdditionalMetadataLookupService : IAdditionalMetadataLookupService
     private static readonly Dictionary<string, DateTime> RetryAfter = new(StringComparer.OrdinalIgnoreCase);
     private readonly HttpClient _client;
     private readonly Logger _logger;
-    private readonly Dictionary<string, RecordingMetadata> _recordingCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, RecordingMetadata?> _recordingCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> KnownMoods = new(StringComparer.OrdinalIgnoreCase)
     {
         "happy", "sad", "melancholic", "melancholy", "energetic", "relaxing", "calm", "chill",
@@ -54,15 +53,31 @@ public class AdditionalMetadataLookupService : IAdditionalMetadataLookupService
         try
         {
             MusicBrainzThrottle.Wait();
-            using var json = GetJson($"https://musicbrainz.org/ws/2/recording/{recordingId:D}?inc=artist-credits+work-rels+tags&fmt=json");
-            if (json == null) return null;
+            using var json = GetJson($"https://musicbrainz.org/ws/2/recording/{recordingId:D}?inc=isrcs+artist-credits+work-rels+work-level-rels+tags&fmt=json");
+            if (json == null) return CacheRecording(cacheKey, null);
             var root = json.RootElement;
             if (!root.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String ||
                 !Guid.TryParse(id.GetString(), out var actual) || actual != recordingId ||
                 !root.TryGetProperty("length", out var length) || !length.TryGetInt32(out var lengthMs) ||
-                lengthMs <= 0 || Math.Abs((long)lengthMs - track.Duration) > 5000) return null;
+                lengthMs <= 0 || Math.Abs((long)lengthMs - track.Duration) > 5000) return CacheRecording(cacheKey, null);
 
             var result = new RecordingMetadata();
+            if (root.TryGetProperty("disambiguation", out var disambiguation) && disambiguation.ValueKind == JsonValueKind.String)
+            {
+                var note = disambiguation.GetString()?.Trim();
+                if (string.Equals(note, "explicit", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(note, "explicit version", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(note, "explicit edit", StringComparison.OrdinalIgnoreCase)) result.AdvisoryRating = AdvisoryRating.Explicit;
+                else if (string.Equals(note, "clean", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(note, "clean version", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(note, "clean edit", StringComparison.OrdinalIgnoreCase)) result.AdvisoryRating = AdvisoryRating.Clean;
+            }
+            if (root.TryGetProperty("isrcs", out var recordingIsrcs) && recordingIsrcs.ValueKind == JsonValueKind.Array)
+            {
+                result.Isrcs = recordingIsrcs.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String)
+                    .Select(x => x.GetString() ?? string.Empty).Where(x => Regex.IsMatch(x, "^[A-Za-z0-9]{12}$"))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).Take(6).ToArray();
+            }
             if (root.TryGetProperty("artist-credit", out var credits) && credits.ValueKind == JsonValueKind.Array)
             {
                 var names = new List<string>();
@@ -97,6 +112,17 @@ public class AdditionalMetadataLookupService : IAdditionalMetadataLookupService
                     works[parsed] = title.GetString()!.Trim();
                 }
                 if (works.Count == 1) result.Work = works.Values.Single();
+                var composers = relations.EnumerateArray()
+                    .Where(relation => relation.ValueKind == JsonValueKind.Object && relation.TryGetProperty("type", out var relationType) && relationType.ValueKind == JsonValueKind.String && relationType.GetString() == "performance")
+                    .Where(relation => relation.TryGetProperty("work", out var work) && work.ValueKind == JsonValueKind.Object)
+                    .SelectMany(relation => relation.GetProperty("work").TryGetProperty("relations", out var workRelations) && workRelations.ValueKind == JsonValueKind.Array
+                        ? workRelations.EnumerateArray().ToArray() : Array.Empty<JsonElement>())
+                    .Where(relation => relation.TryGetProperty("type", out var relationType) && relationType.ValueKind == JsonValueKind.String && relationType.GetString() == "composer" &&
+                                       relation.TryGetProperty("artist", out var creditedArtist) && creditedArtist.TryGetProperty("name", out var artistName) && artistName.ValueKind == JsonValueKind.String)
+                    .Select(relation => relation.TryGetProperty("target-credit", out var credit) && credit.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(credit.GetString())
+                        ? credit.GetString()!.Trim() : relation.GetProperty("artist").GetProperty("name").GetString()!.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                if (composers.Length > 0) result.Composers = composers;
             }
 
             if (root.TryGetProperty("tags", out var tags) && tags.ValueKind == JsonValueKind.Array)
@@ -113,14 +139,19 @@ public class AdditionalMetadataLookupService : IAdditionalMetadataLookupService
                 result.Moods = result.CommunityTags.Where(KnownMoods.Contains).Select(s => s.ToLowerInvariant()).ToArray();
             }
 
-            lock (_recordingCache) _recordingCache[cacheKey] = result;
-            return result;
+            return CacheRecording(cacheKey, result);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
         {
             _logger.Debug(ex, "MusicEnhancer: Recording metadata lookup failed for {0}", recordingId);
             return null;
         }
+    }
+
+    private RecordingMetadata? CacheRecording(string key, RecordingMetadata? value)
+    {
+        lock (_recordingCache) _recordingCache[key] = value;
+        return value;
     }
 
     public string[]? LookupMoods(Track track, string? apiKey)
@@ -150,59 +181,6 @@ public class AdditionalMetadataLookupService : IAdditionalMetadataLookupService
         {
             // Do not log exceptions that might expose the API key in the URL.
             _logger.Debug("MusicEnhancer: Last.fm mood lookup failed for recording {0}", recordingId);
-            return null;
-        }
-    }
-
-    public string[]? LookupComposers(Track track)
-    {
-        if (!Guid.TryParse(track.ForeignRecordingId, out var recordingId) || track.Duration <= 0) return null;
-        try
-        {
-            MusicBrainzThrottle.Wait();
-            using var recording = GetJson($"https://musicbrainz.org/ws/2/recording/{recordingId:D}?inc=work-rels&fmt=json");
-            if (recording == null) return null;
-            var root = recording.RootElement;
-            if (!root.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String ||
-                !Guid.TryParse(id.GetString(), out var actual) || actual != recordingId ||
-                !root.TryGetProperty("length", out var length) || !length.TryGetInt32(out var lengthMs) ||
-                lengthMs <= 0 || Math.Abs((long)lengthMs - track.Duration) > 5000 ||
-                !root.TryGetProperty("relations", out var relationships) || relationships.ValueKind != JsonValueKind.Array) return null;
-
-            var works = new HashSet<Guid>();
-            foreach (var relation in relationships.EnumerateArray())
-            {
-                if (relation.TryGetProperty("type", out var type) && type.GetString() == "performance" &&
-                    relation.TryGetProperty("work", out var work) && work.TryGetProperty("id", out var workId) &&
-                    workId.ValueKind == JsonValueKind.String && Guid.TryParse(workId.GetString(), out var parsed)) works.Add(parsed);
-            }
-            if (works.Count == 0 || works.Count > 3) return null;
-
-            var names = new List<string>();
-            foreach (var workId in works)
-            {
-                MusicBrainzThrottle.Wait();
-                using var work = GetJson($"https://musicbrainz.org/ws/2/work/{workId:D}?inc=artist-rels&fmt=json");
-                if (work == null || !work.RootElement.TryGetProperty("id", out var fetchedId) ||
-                    fetchedId.ValueKind != JsonValueKind.String || !Guid.TryParse(fetchedId.GetString(), out var fetched) || fetched != workId ||
-                    !work.RootElement.TryGetProperty("relations", out var relations) || relations.ValueKind != JsonValueKind.Array) return null;
-                foreach (var relation in relations.EnumerateArray())
-                {
-                    if (!relation.TryGetProperty("type", out var type) || type.ValueKind != JsonValueKind.String || type.GetString() != "composer" ||
-                        !relation.TryGetProperty("artist", out var artist) || !artist.TryGetProperty("name", out var name) ||
-                        name.ValueKind != JsonValueKind.String) continue;
-                    var value = relation.TryGetProperty("target-credit", out var credit) && credit.ValueKind == JsonValueKind.String
-                        ? credit.GetString() : null;
-                    if (string.IsNullOrWhiteSpace(value)) value = name.GetString();
-                    if (!string.IsNullOrWhiteSpace(value)) names.Add(value.Trim());
-                }
-            }
-            var unique = names.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-            return unique.Length == 0 ? null : unique;
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
-        {
-            _logger.Debug(ex, "MusicEnhancer: Composer lookup failed for recording {0}", recordingId);
             return null;
         }
     }

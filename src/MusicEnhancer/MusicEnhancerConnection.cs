@@ -49,8 +49,8 @@ public class MusicEnhancer : NotificationBase<MusicEnhancerSettings>
         {
             var options = Settings.ToFilterOptions();
 
-            _contentFilterService.FilterContentForArtist(message.Artist, message.Album, options);
-            _metadataEnhancerService.EnhanceMetadataForArtist(message.Artist, message.Album, options);
+            var filteredTrackIds = _contentFilterService.FilterContentForArtist(message.Artist, message.Album, options);
+            _metadataEnhancerService.EnhanceMetadataForArtist(message.Artist, message.Album, options, filteredTrackIds);
         }
         catch (Exception ex)
         {

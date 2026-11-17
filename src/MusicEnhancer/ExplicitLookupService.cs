@@ -12,7 +12,7 @@ namespace NzbDrone.Core.Plugins;
 public interface IExplicitLookupService
 {
     AdvisoryRating? Lookup(Track track);
-    string? LookupSingleIsrc(Track track);
+    AdvisoryRating? Lookup(Track track, RecordingMetadata? metadata, bool recordingLookupAttempted = false);
 }
 
 public enum AdvisoryRating { Explicit = 1, Clean = 2 }
@@ -24,9 +24,10 @@ public enum AdvisoryRating { Explicit = 1, Clean = 2 }
 public class ExplicitLookupService : IExplicitLookupService
 {
     private static readonly HttpClient Client = CreateClient();
-    private static readonly object RequestLock = new();
+    private static readonly object CacheLock = new();
+    private static readonly object DeezerThrottleLock = new();
+    private static DateTime _nextDeezerRequest = DateTime.MinValue;
     private readonly Dictionary<string, AdvisoryRating?> _cache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, string?> _isrcCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly HttpClient _client;
     private readonly Logger _logger;
     private DateTime _retryAfter = DateTime.MinValue;
@@ -40,39 +41,6 @@ public class ExplicitLookupService : IExplicitLookupService
     internal ExplicitLookupService(Logger logger, HttpClient client) : this(logger)
     {
         _client = client;
-    }
-
-    public string? LookupSingleIsrc(Track track)
-    {
-        if (!Guid.TryParse(track.ForeignRecordingId, out var recordingId) || track.Duration <= 0) return null;
-        var key = $"{recordingId:D}:{track.Duration}";
-        lock (RequestLock)
-        {
-            if (_isrcCache.TryGetValue(key, out var cached)) return cached;
-            if (DateTime.UtcNow < _retryAfter) return null;
-            try
-            {
-                WaitForMusicBrainz();
-                using var recording = GetJson($"https://musicbrainz.org/ws/2/recording/{recordingId:D}?inc=isrcs&fmt=json");
-                var root = recording.RootElement;
-                if (!root.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String ||
-                    !Guid.TryParse(id.GetString(), out var actualId) || actualId != recordingId ||
-                    !root.TryGetProperty("length", out var length) || !length.TryGetInt32(out var lengthMs) ||
-                    lengthMs <= 0 || Math.Abs((long)lengthMs - track.Duration) > 5000 ||
-                    !root.TryGetProperty("isrcs", out var isrcs) || isrcs.ValueKind != JsonValueKind.Array) return null;
-
-                var codes = isrcs.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String)
-                    .Select(x => x.GetString() ?? string.Empty).Where(x => Regex.IsMatch(x, "^[A-Za-z0-9]{12}$"))
-                    .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-                return _isrcCache[key] = codes.Count == 1 ? codes[0] : null;
-            }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
-            {
-                _logger.Debug(ex, "MusicEnhancer: ISRC lookup failed for recording {0}", recordingId);
-                _retryAfter = DateTime.UtcNow.AddMinutes(2);
-                return null;
-            }
-        }
     }
 
     private static void WaitForMusicBrainz()
@@ -89,101 +57,109 @@ public class ExplicitLookupService : IExplicitLookupService
 
         // Include duration: the same recording ID may be attached to a different file.
         var cacheKey = $"{recordingId:D}:{track.Duration}";
-        lock (RequestLock)
+        lock (CacheLock)
         {
-            if (_cache.TryGetValue(cacheKey, out var cached))
+            if (_cache.TryGetValue(cacheKey, out var cached)) return cached;
+            if (DateTime.UtcNow < _retryAfter) return null;
+        }
+
+        try
+        {
+            WaitForMusicBrainz();
+            using var recording = GetJson($"https://musicbrainz.org/ws/2/recording/{recordingId:D}?inc=isrcs&fmt=json");
+            var root = recording.RootElement;
+            if (!root.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String ||
+                !Guid.TryParse(id.GetString(), out var actualId) || actualId != recordingId ||
+                !root.TryGetProperty("length", out var length) || !length.TryGetInt32(out var lengthMs) ||
+                lengthMs <= 0 || Math.Abs((long)lengthMs - track.Duration) > 5000)
             {
-                return cached;
+                return Cache(cacheKey, null);
             }
 
-            if (DateTime.UtcNow < _retryAfter)
+            // MusicBrainz sometimes explicitly distinguishes the recording itself.
+            if (root.TryGetProperty("disambiguation", out var note) && note.ValueKind == JsonValueKind.String)
             {
-                return null;
+                var description = (note.GetString() ?? string.Empty).Trim();
+                if (Regex.IsMatch(description, @"^(explicit|explicit version|explicit edit)$", RegexOptions.IgnoreCase))
+                    return Cache(cacheKey, AdvisoryRating.Explicit);
+                if (Regex.IsMatch(description, @"^(clean|clean version|clean edit)$", RegexOptions.IgnoreCase))
+                    return Cache(cacheKey, AdvisoryRating.Clean);
             }
 
+            var codes = root.TryGetProperty("isrcs", out var isrcs) && isrcs.ValueKind == JsonValueKind.Array
+                ? isrcs.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString() ?? string.Empty)
+                    .Where(x => Regex.IsMatch(x, "^[A-Za-z0-9]{12}$")).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+                : Array.Empty<string>();
+            return Cache(cacheKey, LookupByIsrcs(track, codes));
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
+        {
+            _logger.Debug(ex, "MusicEnhancer: Explicit lookup failed for recording {0}", recordingId);
+            lock (CacheLock) _retryAfter = DateTime.UtcNow.AddMinutes(2);
+            return null;
+        }
+    }
+
+    public AdvisoryRating? Lookup(Track track, RecordingMetadata? metadata, bool recordingLookupAttempted = false)
+    {
+        if (!Guid.TryParse(track.ForeignRecordingId, out var recordingId) || track.Duration <= 0) return null;
+        var cacheKey = $"{recordingId:D}:{track.Duration}";
+        lock (CacheLock)
+        {
+            if (_cache.TryGetValue(cacheKey, out var cached)) return cached;
+        }
+        if (metadata?.AdvisoryRating != null) return Cache(cacheKey, metadata.AdvisoryRating);
+        if (metadata?.Isrcs?.Length > 0)
+        {
             try
             {
-                WaitForMusicBrainz();
-                using var recording = GetJson($"https://musicbrainz.org/ws/2/recording/{recordingId:D}?inc=isrcs&fmt=json");
-                var root = recording.RootElement;
-                if (!root.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String ||
-                    !Guid.TryParse(id.GetString(), out var actualId) || actualId != recordingId ||
-                    !root.TryGetProperty("length", out var length) || !length.TryGetInt32(out var lengthMs) ||
-                    lengthMs <= 0 || Math.Abs((long)lengthMs - track.Duration) > 5000)
-                {
-                    return null;
-                }
-
-                // MusicBrainz sometimes explicitly distinguishes the recording itself.
-                // Do not infer either rating from an absent or unrelated disambiguation.
-                if (root.TryGetProperty("disambiguation", out var note) && note.ValueKind == JsonValueKind.String)
-                {
-                    var description = (note.GetString() ?? string.Empty).Trim();
-                    if (Regex.IsMatch(description, @"^(explicit|explicit version|explicit edit)$", RegexOptions.IgnoreCase))
-                    {
-                        return _cache[cacheKey] = AdvisoryRating.Explicit;
-                    }
-                    if (Regex.IsMatch(description, @"^(clean|clean version|clean edit)$", RegexOptions.IgnoreCase))
-                    {
-                        return _cache[cacheKey] = AdvisoryRating.Clean;
-                    }
-                }
-
-                if (!root.TryGetProperty("isrcs", out var isrcs) || isrcs.ValueKind != JsonValueKind.Array)
-                {
-                    _cache[cacheKey] = null;
-                    return null;
-                }
-
-                var codes = isrcs.EnumerateArray()
-                    .Where(x => x.ValueKind == JsonValueKind.String)
-                    .Select(x => x.GetString() ?? string.Empty)
-                    .Where(x => Regex.IsMatch(x, "^[A-Za-z0-9]{12}$"))
-                    .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-
-                // Large or conflicting identifier sets are ambiguous; never guess.
-                if (codes.Count == 0 || codes.Count > 5)
-                {
-                    _cache[cacheKey] = null;
-                    return null;
-                }
-
-                var ratings = new List<bool>();
-                foreach (var code in codes)
-                {
-                    using var response = GetJson($"https://api.deezer.com/track/isrc:{code}");
-                    var item = response.RootElement;
-                    if (item.TryGetProperty("error", out _))
-                    {
-                        // Missing or rate-limited catalog entries cannot establish consensus.
-                        return null;
-                    }
-
-                    if (!item.TryGetProperty("isrc", out var actualCode) || actualCode.ValueKind != JsonValueKind.String ||
-                        !string.Equals(actualCode.GetString(), code, StringComparison.OrdinalIgnoreCase) ||
-                        !item.TryGetProperty("duration", out var duration) || !duration.TryGetInt32(out var seconds) ||
-                        seconds <= 0 || Math.Abs((long)seconds * 1000 - track.Duration) > 5000 ||
-                        !item.TryGetProperty("explicit_lyrics", out var rating) ||
-                        (rating.ValueKind != JsonValueKind.True && rating.ValueKind != JsonValueKind.False))
-                    {
-                        // A mismatched response makes the recording ambiguous.
-                        return null;
-                    }
-
-                    ratings.Add(rating.GetBoolean());
-                }
-
-                AdvisoryRating? result = ratings.Count > 0 && ratings.All(x => x) ? AdvisoryRating.Explicit : null;
-                _cache[cacheKey] = result;
-                return result;
+                return Cache(cacheKey, LookupByIsrcs(track, metadata.Isrcs));
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
             {
-                // Don't cache transient errors, and never turn a failed lookup into "clean".
                 _logger.Debug(ex, "MusicEnhancer: Explicit lookup failed for recording {0}", recordingId);
-                _retryAfter = DateTime.UtcNow.AddMinutes(2);
+                lock (CacheLock) _retryAfter = DateTime.UtcNow.AddMinutes(2);
                 return null;
             }
+        }
+        if (recordingLookupAttempted) return Cache(cacheKey, null);
+        return Lookup(track);
+    }
+
+    private AdvisoryRating? LookupByIsrcs(Track track, IReadOnlyCollection<string> codes)
+    {
+        if (codes.Count == 0 || codes.Count > 5) return null;
+        var ratings = new List<bool>();
+        foreach (var code in codes)
+        {
+            WaitForDeezer();
+            using var response = GetJson($"https://api.deezer.com/track/isrc:{code}");
+            var item = response.RootElement;
+            if (item.TryGetProperty("error", out _)) return null;
+            if (!item.TryGetProperty("isrc", out var actualCode) || actualCode.ValueKind != JsonValueKind.String ||
+                !string.Equals(actualCode.GetString(), code, StringComparison.OrdinalIgnoreCase) ||
+                !item.TryGetProperty("duration", out var duration) || !duration.TryGetInt32(out var seconds) ||
+                seconds <= 0 || Math.Abs((long)seconds * 1000 - track.Duration) > 5000 ||
+                !item.TryGetProperty("explicit_lyrics", out var rating) ||
+                (rating.ValueKind != JsonValueKind.True && rating.ValueKind != JsonValueKind.False)) return null;
+            ratings.Add(rating.GetBoolean());
+        }
+        return ratings.Count > 0 && ratings.All(x => x) ? AdvisoryRating.Explicit : null;
+    }
+
+    private AdvisoryRating? Cache(string key, AdvisoryRating? value)
+    {
+        lock (CacheLock) _cache[key] = value;
+        return value;
+    }
+
+    private static void WaitForDeezer()
+    {
+        lock (DeezerThrottleLock)
+        {
+            var delay = _nextDeezerRequest - DateTime.UtcNow;
+            if (delay > TimeSpan.Zero) System.Threading.Thread.Sleep(delay);
+            _nextDeezerRequest = DateTime.UtcNow.AddMilliseconds(500);
         }
     }
 
